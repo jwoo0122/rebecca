@@ -1,0 +1,388 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 100;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0407A2F443EE2A6326EABE05 /* CGEventSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 811554F794378637F2452FE0 /* CGEventSupport.swift */; };
+		234AB363A80ABC7DB5E20742 /* ActionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 848A8EFAB7FD02C0B6F5B00F /* ActionSupport.swift */; };
+		254EDE82C086CC7DEE06C7D7 /* DisplayRevision.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAF779189787ADE5BBE24BC7 /* DisplayRevision.swift */; };
+		2B47ECD98BFBCC4C42CF0DA9 /* StatusWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E0D1253C0897F4B7BEE1B0 /* StatusWindow.swift */; };
+		3B019A00EFE5CAAD630A885B /* WindowSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28513198976CF14E67317B41 /* WindowSupport.swift */; };
+		43B51FE4FB1E1814D9A4EF79 /* DisplaySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02F0BCD4A4B455BBDFCA16F9 /* DisplaySupport.swift */; };
+		548D39689EFA525FD486C1CA /* FocusSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F8200F1CD67281C7BD7E5F /* FocusSupport.swift */; };
+		5DA1B659C9AB29CFA42DE512 /* AuditLogSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 737B8505DD4D7E3B057A7D95 /* AuditLogSupport.swift */; };
+		73ED9C165999A6C67A3EC108 /* TreeSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6836AF1DFEC1F81C0D55A9D /* TreeSupport.swift */; };
+		7BF21794C85304542DA3CD33 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D947272442B594FF863D8B8 /* AppSupport.swift */; };
+		A65EFFDBECB9ABA913D6009B /* AppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C81B99EC0AB1C9A7B9945E8E /* AppMain.swift */; };
+		C1BCD1DC72A035F176EE21CF /* ShareableContentSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC5313DB76F74CB524FFFA7 /* ShareableContentSupport.swift */; };
+		C44850D2D5B5948AA38883BA /* SocketSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D004A100A6DDF78CA9A2832 /* SocketSupport.swift */; };
+		CBC64C98301005D5006BC690 /* rebecca-icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = CBC64C9730100474006BC690 /* rebecca-icon.icon */; };
+		D3FC85716F1039254DFD669A /* CaptureSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 566C4C9EFCE22CB4DCC43863 /* CaptureSupport.swift */; };
+		E02E4DA3D35C49358F59BC2F /* WindowControlSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995FEA29E5198AB136824DEB /* WindowControlSupport.swift */; };
+		F5FA6BEAF332760559ACA534 /* PermissionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CCD06AD6529DB57B2E9DDAE /* PermissionState.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		02F0BCD4A4B455BBDFCA16F9 /* DisplaySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplaySupport.swift; sourceTree = "<group>"; };
+		28513198976CF14E67317B41 /* WindowSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowSupport.swift; sourceTree = "<group>"; };
+		566C4C9EFCE22CB4DCC43863 /* CaptureSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSupport.swift; sourceTree = "<group>"; };
+		5D947272442B594FF863D8B8 /* AppSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupport.swift; sourceTree = "<group>"; };
+		6CC5313DB76F74CB524FFFA7 /* ShareableContentSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareableContentSupport.swift; sourceTree = "<group>"; };
+		6D004A100A6DDF78CA9A2832 /* SocketSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocketSupport.swift; sourceTree = "<group>"; };
+		737B8505DD4D7E3B057A7D95 /* AuditLogSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditLogSupport.swift; sourceTree = "<group>"; };
+		7CCD06AD6529DB57B2E9DDAE /* PermissionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionState.swift; sourceTree = "<group>"; };
+		811554F794378637F2452FE0 /* CGEventSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGEventSupport.swift; sourceTree = "<group>"; };
+		848A8EFAB7FD02C0B6F5B00F /* ActionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionSupport.swift; sourceTree = "<group>"; };
+		995FEA29E5198AB136824DEB /* WindowControlSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowControlSupport.swift; sourceTree = "<group>"; };
+		BAF779189787ADE5BBE24BC7 /* DisplayRevision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayRevision.swift; sourceTree = "<group>"; };
+		C2E0D1253C0897F4B7BEE1B0 /* StatusWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusWindow.swift; sourceTree = "<group>"; };
+		C6836AF1DFEC1F81C0D55A9D /* TreeSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreeSupport.swift; sourceTree = "<group>"; };
+		C81B99EC0AB1C9A7B9945E8E /* AppMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMain.swift; sourceTree = "<group>"; };
+		CBC64C9730100474006BC690 /* rebecca-icon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "rebecca-icon.icon"; sourceTree = "<group>"; };
+		F4DDF86552A984F6CC83E123 /* Rebecca.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Rebecca.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F6F8200F1CD67281C7BD7E5F /* FocusSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusSupport.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		06D76BA3E90ED61DFEFE58F1 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F4DDF86552A984F6CC83E123 /* Rebecca.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		12EC2190676ECE895F409B37 = {
+			isa = PBXGroup;
+			children = (
+				CBC64C9730100474006BC690 /* rebecca-icon.icon */,
+				AB82956DE5EDDB7AEB2B21A6 /* rebecca */,
+				06D76BA3E90ED61DFEFE58F1 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6316FBFB000E2A4ACB1A41F8 /* host */ = {
+			isa = PBXGroup;
+			children = (
+				9758D9700DD74E0A6F85E208 /* Sources */,
+			);
+			path = host;
+			sourceTree = "<group>";
+		};
+		9758D9700DD74E0A6F85E208 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				848A8EFAB7FD02C0B6F5B00F /* ActionSupport.swift */,
+				C81B99EC0AB1C9A7B9945E8E /* AppMain.swift */,
+				5D947272442B594FF863D8B8 /* AppSupport.swift */,
+				737B8505DD4D7E3B057A7D95 /* AuditLogSupport.swift */,
+				566C4C9EFCE22CB4DCC43863 /* CaptureSupport.swift */,
+				811554F794378637F2452FE0 /* CGEventSupport.swift */,
+				BAF779189787ADE5BBE24BC7 /* DisplayRevision.swift */,
+				02F0BCD4A4B455BBDFCA16F9 /* DisplaySupport.swift */,
+				F6F8200F1CD67281C7BD7E5F /* FocusSupport.swift */,
+				7CCD06AD6529DB57B2E9DDAE /* PermissionState.swift */,
+				6CC5313DB76F74CB524FFFA7 /* ShareableContentSupport.swift */,
+				6D004A100A6DDF78CA9A2832 /* SocketSupport.swift */,
+				C2E0D1253C0897F4B7BEE1B0 /* StatusWindow.swift */,
+				C6836AF1DFEC1F81C0D55A9D /* TreeSupport.swift */,
+				995FEA29E5198AB136824DEB /* WindowControlSupport.swift */,
+				28513198976CF14E67317B41 /* WindowSupport.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		AB82956DE5EDDB7AEB2B21A6 /* rebecca */ = {
+			isa = PBXGroup;
+			children = (
+				6316FBFB000E2A4ACB1A41F8 /* host */,
+			);
+			name = rebecca;
+			path = ..;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9811C705527198A874738F20 /* Rebecca */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 75AC2555AB6F3163DB093103 /* Build configuration list for PBXNativeTarget "Rebecca" */;
+			buildPhases = (
+				E3AC90DAB4C5BEFACCA7AC19 /* Sources */,
+				BFFBCCF4561F60A3F382E46B /* Resources */,
+			);
+			buildRules = (
+			);
+			name = Rebecca;
+			productName = Rebecca;
+			productReference = F4DDF86552A984F6CC83E123 /* Rebecca.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		51E543985273780F30D66986 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = 222B1B4E79CE978C9CFE8651 /* Build configuration list for PBXProject "Rebecca" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 12EC2190676ECE895F409B37;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 100;
+			productRefGroup = 06D76BA3E90ED61DFEFE58F1 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9811C705527198A874738F20 /* Rebecca */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BFFBCCF4561F60A3F382E46B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+				CBC64C98301005D5006BC690 /* rebecca-icon.icon in Resources */,
+			);
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E3AC90DAB4C5BEFACCA7AC19 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				234AB363A80ABC7DB5E20742 /* ActionSupport.swift in Sources */,
+				A65EFFDBECB9ABA913D6009B /* AppMain.swift in Sources */,
+				7BF21794C85304542DA3CD33 /* AppSupport.swift in Sources */,
+				5DA1B659C9AB29CFA42DE512 /* AuditLogSupport.swift in Sources */,
+				0407A2F443EE2A6326EABE05 /* CGEventSupport.swift in Sources */,
+				D3FC85716F1039254DFD669A /* CaptureSupport.swift in Sources */,
+				254EDE82C086CC7DEE06C7D7 /* DisplayRevision.swift in Sources */,
+				43B51FE4FB1E1814D9A4EF79 /* DisplaySupport.swift in Sources */,
+				548D39689EFA525FD486C1CA /* FocusSupport.swift in Sources */,
+				F5FA6BEAF332760559ACA534 /* PermissionState.swift in Sources */,
+				C1BCD1DC72A035F176EE21CF /* ShareableContentSupport.swift in Sources */,
+				C44850D2D5B5948AA38883BA /* SocketSupport.swift in Sources */,
+				2B47ECD98BFBCC4C42CF0DA9 /* StatusWindow.swift in Sources */,
+				73ED9C165999A6C67A3EC108 /* TreeSupport.swift in Sources */,
+				E02E4DA3D35C49358F59BC2F /* WindowControlSupport.swift in Sources */,
+				3B019A00EFE5CAAD630A885B /* WindowSupport.swift in Sources */,
+			);
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		611DE139DF98F29F7DD00562 /* Release configuration for PBXProject "Rebecca" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				EXECUTABLE_NAME = Rebecca;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.jwoo0122.rebecca;
+				PRODUCT_NAME = Rebecca;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		7DE9D3613B3DF2F9974C4290 /* Debug configuration for PBXProject "Rebecca" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				EXECUTABLE_NAME = Rebecca;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.jwoo0122.rebecca;
+				PRODUCT_NAME = Rebecca;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AAE8786E470FDC6C4DAF1E89 /* Release configuration for PBXNativeTarget "Rebecca" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "rebecca-icon";
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = macos/Rebecca.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				EXECUTABLE_NAME = Rebecca;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = macos/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Rebecca;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.jwoo0122.rebecca;
+				PRODUCT_NAME = Rebecca;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		F053D396B62C8BD9FEA32125 /* Debug configuration for PBXNativeTarget "Rebecca" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "rebecca-icon";
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = macos/Rebecca.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				EXECUTABLE_NAME = Rebecca;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = macos/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Rebecca;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.jwoo0122.rebecca;
+				PRODUCT_NAME = Rebecca;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		222B1B4E79CE978C9CFE8651 /* Build configuration list for PBXProject "Rebecca" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7DE9D3613B3DF2F9974C4290 /* Debug configuration for PBXProject "Rebecca" */,
+				611DE139DF98F29F7DD00562 /* Release configuration for PBXProject "Rebecca" */,
+			);
+			defaultConfigurationName = Debug;
+		};
+		75AC2555AB6F3163DB093103 /* Build configuration list for PBXNativeTarget "Rebecca" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F053D396B62C8BD9FEA32125 /* Debug configuration for PBXNativeTarget "Rebecca" */,
+				AAE8786E470FDC6C4DAF1E89 /* Release configuration for PBXNativeTarget "Rebecca" */,
+			);
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 51E543985273780F30D66986 /* Project object */;
+}

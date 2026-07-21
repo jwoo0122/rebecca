@@ -8,9 +8,6 @@ requirements.md
 dist/
 build/DerivedData/
 
-# xcodegen
-macos/Rebecca.xcodeproj/
-
 # icon work
 resources/icon.iconset/
 
