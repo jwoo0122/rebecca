@@ -16,3 +16,4 @@ resources/icon.iconset/
 .DS_Store
 icon.png
 resources/Rebecca.icns
+macos/Rebecca.xcodeproj/xcuserdata/

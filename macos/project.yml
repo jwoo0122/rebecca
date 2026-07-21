@@ -30,8 +30,8 @@ targets:
         EXECUTABLE_NAME: Rebecca
         MACOSX_DEPLOYMENT_TARGET: "26.0"
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: macos/Info.plist
-        CODE_SIGN_ENTITLEMENTS: macos/Rebecca.entitlements
+        INFOPLIST_FILE: Info.plist
+        CODE_SIGN_ENTITLEMENTS: Rebecca.entitlements
         ENABLE_HARDENED_RUNTIME: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     buildScripts:
@@ -45,7 +45,7 @@ targets:
         inputFiles: []
         outputFiles: []
     info:
-      path: macos/Info.plist
+      path: Info.plist
       properties:
         CFBundleExecutable: Rebecca
         CFBundleName: Rebecca
