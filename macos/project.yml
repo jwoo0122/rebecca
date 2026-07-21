@@ -1,0 +1,55 @@
+name: Rebecca
+options:
+  bundleIdPrefix: dev.jwoo0122
+  deploymentTarget:
+    macOS: "26.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+
+settings:
+  base:
+    PRODUCT_NAME: Rebecca
+    PRODUCT_BUNDLE_IDENTIFIER: dev.jwoo0122.rebecca
+    EXECUTABLE_NAME: Rebecca
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGNING_ALLOWED: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+targets:
+  Rebecca:
+    type: application
+    platform: macOS
+    sources:
+      - path: ../host/Sources
+      - path: Assets.xcassets
+    settings:
+      base:
+        PRODUCT_NAME: Rebecca
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jwoo0122.rebecca
+        EXECUTABLE_NAME: Rebecca
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: macos/Info.plist
+        CODE_SIGN_ENTITLEMENTS: macos/Rebecca.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    buildScripts:
+      - script: |
+          RESOURCES_DIR="${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Resources"
+          mkdir -p "$RESOURCES_DIR/schemas"
+          cp "$SRCROOT/../resources/SKILL.md" "$RESOURCES_DIR/SKILL.md"
+          cp "$SRCROOT/../schemas/protocol-v1.json" "$RESOURCES_DIR/schemas/protocol-v1.json"
+        name: Copy Resources
+        runOnlyWhenInstalling: false
+        inputFiles: []
+        outputFiles: []
+    info:
+      path: macos/Info.plist
+      properties:
+        CFBundleExecutable: Rebecca
+        CFBundleName: Rebecca
+        CFBundleIdentifier: dev.jwoo0122.rebecca
+        LSUIElement: true
+        LSMinimumSystemVersion: "26.0"
+    dependencies: []

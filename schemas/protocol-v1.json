@@ -1,0 +1,824 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rebecca.local/schemas/protocol-v1.json",
+  "title": "Rebecca local socket protocol v1",
+  "type": "object",
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "command",
+        "arguments"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "type": "object"
+        }
+      }
+    },
+    "permission_state": {
+      "type": "string",
+      "enum": [
+        "granted",
+        "denied",
+        "not_determined",
+        "restricted",
+        "unknown"
+      ]
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {}
+      }
+    },
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "ok",
+        "host",
+        "permissions",
+        "emergency_stop"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "host": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "running",
+            "version",
+            "pid"
+          ],
+          "properties": {
+            "running": {
+              "const": true
+            },
+            "version": {
+              "type": "string"
+            },
+            "pid": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "accessibility",
+            "screen_recording"
+          ],
+          "properties": {
+            "accessibility": {
+              "$ref": "#/$defs/permission_state"
+            },
+            "screen_recording": {
+              "$ref": "#/$defs/permission_state"
+            }
+          }
+        },
+        "emergency_stop": {
+          "type": "boolean"
+        }
+      }
+    },
+    "display": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display_id",
+        "logical_frame",
+        "pixel_size",
+        "scale_factor",
+        "primary"
+      ],
+      "properties": {
+        "display_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scale_factor": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "primary": {
+          "type": "boolean"
+        },
+        "logical_frame": {
+          "$ref": "#/$defs/logical_frame"
+        },
+        "pixel_size": {
+          "$ref": "#/$defs/pixel_size"
+        }
+      }
+    },
+    "displays_success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "ok",
+        "revision",
+        "displays"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "displays": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/display"
+          }
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "ok",
+        "error"
+      ],
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "$ref": "#/$defs/error"
+        },
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "logical_frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "pixel_size": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "window_info": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "window_id",
+        "owner_pid",
+        "bundle_id",
+        "title",
+        "logical_frame",
+        "onscreen",
+        "minimized",
+        "focused",
+        "display_id"
+      ],
+      "properties": {
+        "window_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "owner_pid": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bundle_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logical_frame": {
+          "$ref": "#/$defs/logical_frame"
+        },
+        "onscreen": {
+          "type": "boolean"
+        },
+        "minimized": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "focused": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "display_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "windows_success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "ok",
+        "revision",
+        "windows"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "windows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/window_info"
+          }
+        }
+      }
+    },
+    "capture_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "id"
+      ],
+      "properties": {
+        "type": {
+          "const": "window"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "capture_success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "ok",
+        "path",
+        "target",
+        "pixel_size",
+        "logical_frame",
+        "scale_factor",
+        "revision"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "$ref": "#/$defs/capture_target"
+        },
+        "pixel_size": {
+          "$ref": "#/$defs/pixel_size"
+        },
+        "logical_frame": {
+          "$ref": "#/$defs/logical_frame"
+        },
+        "scale_factor": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "app_info": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "bundle_id",
+        "name",
+        "executable_url",
+        "active",
+        "hidden"
+      ],
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "bundle_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "executable_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "hidden": {
+          "type": "boolean"
+        }
+      }
+    },
+    "apps_success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "ok",
+        "revision",
+        "apps"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "apps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/app_info"
+          }
+        }
+      }
+    },
+    "focused_app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "bundle_id",
+        "name"
+      ],
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "bundle_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "focused_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "window_id",
+        "title",
+        "logical_frame"
+      ],
+      "properties": {
+        "window_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logical_frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/logical_frame"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "focused_element": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "label",
+        "description",
+        "logical_frame"
+      ],
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logical_frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/logical_frame"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "focused_success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "ok",
+        "revision"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "active_app": {
+          "$ref": "#/$defs/focused_app"
+        },
+        "focused_window": {
+          "$ref": "#/$defs/focused_window"
+        },
+        "focused_element": {
+          "$ref": "#/$defs/focused_element"
+        }
+      }
+    },
+    "tree_node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "subrole",
+        "label",
+        "description",
+        "value",
+        "enabled",
+        "focused",
+        "secure",
+        "frame",
+        "actions",
+        "children"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "subrole": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {},
+        "enabled": {
+          "type": "boolean"
+        },
+        "focused": {
+          "type": "boolean"
+        },
+        "secure": {
+          "type": "boolean"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/logical_frame"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tree_node"
+          }
+        }
+      }
+    },
+    "tree_success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "ok",
+        "revision",
+        "root"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "root": {
+          "$ref": "#/$defs/tree_node"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "find_success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "ok",
+        "revision",
+        "results"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tree_node"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/success"
+    },
+    {
+      "$ref": "#/$defs/displays_success"
+    },
+    {
+      "$ref": "#/$defs/windows_success"
+    },
+    {
+      "$ref": "#/$defs/capture_success"
+    },
+    {
+      "$ref": "#/$defs/apps_success"
+    },
+    {
+      "$ref": "#/$defs/focused_success"
+    },
+    {
+      "$ref": "#/$defs/tree_success"
+    },
+    {
+      "$ref": "#/$defs/find_success"
+    },
+    {
+      "$ref": "#/$defs/failure"
+    }
+  ]
+}

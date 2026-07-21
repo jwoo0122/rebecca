@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Print environment
+        run: |
+          sw_vers
+          uname -m
+          xcodebuild -version
+          xcode-select -p
+          rustc --version
+          cargo --version
+
+      - name: Build macOS app (Rust CLI + Swift host)
+        env:
+          REBECCA_BUILD_PROFILE: release
+        run: ./scripts/build-macos-app.sh
+
+      - name: Verify macOS app (pre-sign)
+        run: ./scripts/verify-macos-app.sh dist/Rebecca.app
+
+      # --- Code Signing ---
+
+      - name: Import Developer ID certificate
+        env:
+          DEVELOPER_ID_CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          # Create a temporary keychain
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import the .p12 certificate
+          CERT_PATH="$RUNNER_TEMP/developer-id.p12"
+          echo "$DEVELOPER_ID_CERT_P12" | base64 --decode > "$CERT_PATH"
+          security import "$CERT_PATH" \
+            -P "$DEVELOPER_ID_CERT_PASSWORD" \
+            -A -t cert \
+            -k "$KEYCHAIN_PATH"
+
+          # Extract the signing identity name
+          SIGNING_IDENTITY=$(security find-identity -p codesigning -v "$KEYCHAIN_PATH" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "Found signing identity: $SIGNING_IDENTITY"
+
+          # Allow codesign to access the key without prompting
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      - name: Sign app
+        run: |
+          codesign --force --deep --options runtime \
+            --entitlements macos/Rebecca.entitlements \
+            --sign "$SIGNING_IDENTITY" \
+            dist/Rebecca.app
+
+      - name: Verify signature
+        run: |
+          codesign --verify --deep --strict --verbose=2 dist/Rebecca.app
+          spctl --assess --type execute --verbose dist/Rebecca.app || true
+
+      # --- Notarization ---
+
+      - name: Notarize
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER }}
+          ASC_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/authkey.p8"
+          echo "$ASC_KEY_CONTENT" | base64 --decode > "$KEY_PATH"
+
+          # Create ZIP for notarization
+          ditto -c -k --keepParent dist/Rebecca.app "$RUNNER_TEMP/Rebecca.zip"
+
+          # Submit and wait
+          xcrun notarytool submit "$RUNNER_TEMP/Rebecca.zip" \
+            --key "$KEY_PATH" \
+            --key-id "$ASC_KEY_ID" \
+            --issuer "$ASC_ISSUER" \
+            --wait
+
+      - name: Staple
+        run: |
+          xcrun stapler staple dist/Rebecca.app
+          xcrun stapler validate dist/Rebecca.app
+
+      - name: Verify macOS app (post-sign)
+        run: ./scripts/verify-macos-app.sh dist/Rebecca.app
+
+      # --- Release ---
+
+      - name: Create release archive
+        run: |
+          cd dist
+          ditto -c -k --keepParent Rebecca.app ../Rebecca-${{ github.ref_name }}.zip
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: Rebecca-${{ github.ref_name }}.zip
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          if [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH"
+          fi
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/authkey.p8" "$RUNNER_TEMP/Rebecca.zip"

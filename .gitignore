@@ -1,0 +1,21 @@
+# Local product requirements supplied by the operator.
+requirements.md
+
+# Local build artifacts.
+/target/
+/build/
+# macOS app build
+dist/
+build/DerivedData/
+
+# xcodegen
+macos/Rebecca.xcodeproj/
+
+# icon work
+resources/icon.iconset/
+
+*.p12
+*.p8
+.DS_Store
+icon.png
+resources/Rebecca.icns
