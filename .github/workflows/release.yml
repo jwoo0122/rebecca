@@ -60,9 +60,25 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
+      - name: Sign nested CLI binary
+        run: |
+          APP_PATH="dist/Rebecca.app"
+          CLI_PATH="$APP_PATH/Contents/Resources/bin/rebecca"
+          test -x "$CLI_PATH"
+
+          codesign --force \
+            --options runtime \
+            --timestamp \
+            --keychain "$SIGNING_KEYCHAIN" \
+            --sign "$SIGNING_IDENTITY" \
+            "$CLI_PATH"
+          codesign --verify --strict --verbose=2 "$CLI_PATH"
+
       - name: Sign app
         run: |
-          codesign --force --deep --options runtime \
+          codesign --force \
+            --options runtime \
+            --timestamp \
             --entitlements macos/Rebecca.entitlements \
             --keychain "$SIGNING_KEYCHAIN" \
             --sign "$SIGNING_IDENTITY" \
@@ -86,11 +102,28 @@ jobs:
 
           ditto -c -k --keepParent dist/Rebecca.app "$RUNNER_TEMP/Rebecca.zip"
 
-          xcrun notarytool submit "$RUNNER_TEMP/Rebecca.zip" \
+          NOTARY_RESPONSE="$RUNNER_TEMP/notary-response.json"
+          if ! xcrun notarytool submit "$RUNNER_TEMP/Rebecca.zip" \
             --key "$KEY_PATH" \
             --key-id "$ASC_KEY_ID" \
             --issuer "$ASC_ISSUER" \
-            --wait
+            --wait \
+            --output-format json > "$NOTARY_RESPONSE"; then
+            [[ ! -f "$NOTARY_RESPONSE" ]] || cat "$NOTARY_RESPONSE"
+            exit 1
+          fi
+          cat "$NOTARY_RESPONSE"
+
+          SUBMISSION_ID="$(plutil -extract id raw "$NOTARY_RESPONSE")"
+          NOTARY_STATUS="$(plutil -extract status raw "$NOTARY_RESPONSE")"
+          if [[ "$NOTARY_STATUS" != "Accepted" ]]; then
+            echo "Notarization failed with status: $NOTARY_STATUS" >&2
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --key "$KEY_PATH" \
+              --key-id "$ASC_KEY_ID" \
+              --issuer "$ASC_ISSUER" || true
+            exit 1
+          fi
 
       - name: Staple
         run: |
@@ -118,4 +151,4 @@ jobs:
           if [ -f "$KEYCHAIN_PATH" ]; then
             security delete-keychain "$KEYCHAIN_PATH"
           fi
-          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/authkey.p8" "$RUNNER_TEMP/Rebecca.zip"
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/authkey.p8" "$RUNNER_TEMP/Rebecca.zip" "$RUNNER_TEMP/notary-response.json"
