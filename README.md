@@ -15,6 +15,18 @@ observations over a versioned, length-prefixed JSON Unix socket.
 The build configuration explicitly sets `MACOSX_DEPLOYMENT_TARGET=15.0` and
 builds `aarch64-apple-darwin` / `arm64` only.
 
+## Install
+
+Signed and notarized releases are published through the Homebrew tap:
+
+```sh
+brew tap jwoo0122/tap
+brew install --cask jwoo0122/tap/rebecca
+rebecca status
+```
+
+The cask installs `Rebecca.app` and exposes the bundled `rebecca` CLI.
+
 ## Build and test
 
 ```sh
@@ -93,6 +105,5 @@ mode `0600`, and rejects peers whose UID differs from the current user.
   PNG window output only.
 - A non-granted non-prompt preflight result is reported as `unknown`, because it
   cannot distinguish TCC denial, `not_determined`, or `restricted`.
-- No signing, notarization, installer, release packaging, or automatic app installation.
 - The accessory AppKit host shows a status window on launch with non-prompt
   Accessibility, Screen Recording, and service state.

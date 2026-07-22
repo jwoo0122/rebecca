@@ -1,6 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+version="${1:-}"
+sha256="${2:-}"
+
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "usage: $0 VERSION SHA256" >&2
+  exit 2
+fi
+if [[ ! "$sha256" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "usage: $0 VERSION SHA256" >&2
+  exit 2
+fi
+
+cat <<CASK
 cask "rebecca" do
-  version "0.1.0"
-  sha256 "d0bd76dd0133b04b144df8ae31044f6ae740dad5edc689d1db1fe574e80d1190"
+  version "$version"
+  sha256 "$sha256"
 
   url "https://github.com/jwoo0122/rebecca/releases/download/v#{version}/Rebecca-v#{version}.zip"
   name "Rebecca"
@@ -19,3 +35,4 @@ cask "rebecca" do
     "~/Library/Preferences/dev.jwoo0122.rebecca.plist",
   ]
 end
+CASK

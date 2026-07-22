@@ -61,23 +61,27 @@ The CLI auto-launches the host app when the socket is unavailable.
 - Does not touch signing secrets
 
 ### Release CI (`.github/workflows/release.yml`)
-- Triggered by `v*` tags
-- Builds the app, verifies, creates ZIP, uploads to GitHub Releases
-- Currently in **unsigned release mode** (no Developer ID signing)
+- Runs from `main` for release-worthy Conventional Commits.
+- `feat` creates a minor release; `fix` and `perf` create a patch release;
+  `BREAKING CHANGE` creates a major release. Documentation, test, CI, and chore
+  commits do not create a release.
+- Builds, signs nested binaries and the app, notarizes, staples, and verifies the
+  signed `Rebecca.app`.
+- Creates the version tag and GitHub Release ZIP.
+- Updates `jwoo0122/homebrew-tap/Casks/rebecca.rb` with the release SHA-256.
 
-## Signed Release (TODO)
+## Homebrew Cask
 
-To enable signed and notarized releases:
+Install the signed and notarized app and its bundled CLI with:
 
-1. Join Apple Developer Program ($99/year)
-2. Create a Developer ID Application certificate
-3. Create an App Store Connect API key (preferred over app-specific password)
-4. Add GitHub Secrets:
-   - `DEVELOPER_ID_APPLICATION` — certificate name
-   - `APP_STORE_CONNECT_API_KEY_ID` — key ID
-   - `APP_STORE_CONNECT_API_KEY_ISSUER` — issuer ID
-   - `APP_STORE_CONNECT_API_KEY_CONTENT` — base64-encoded `.p8` key
-5. Update `release.yml` to install cert, sign, notarize, staple
+```bash
+brew tap jwoo0122/tap
+brew install --cask jwoo0122/tap/rebecca
+rebecca status
+```
+
+The release workflow uses the `HOMEBREW_TAP_TOKEN` secret to update the separate
+`jwoo0122/homebrew-tap` repository.
 
 ## Permissions
 

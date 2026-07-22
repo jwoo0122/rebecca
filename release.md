@@ -205,42 +205,40 @@ cargo --version
 
 ## Release workflow
 
-`v*` 태그를 기준으로 별도 release workflow를 구성한다.
+Release workflow는 `main` push에서 실행되며, `scripts/next-release-version.sh`가
+최신 semantic version tag 이후의 Conventional Commit을 분석한다.
 
-초기 단계에서는 다음 두 모드를 구분한다.
+버전 규칙은 다음과 같다.
 
-### 1. Unsigned release mode
+* `feat` → minor 증가
+* `fix`, `perf` → patch 증가
+* `BREAKING CHANGE` 또는 `!` → major 증가
+* `docs`, `test`, `ci`, `chore`만 포함된 push → release 없음
 
-Apple Developer 설정이 아직 준비되지 않은 경우:
+release-worthy commit이 있으면 workflow가 다음 순서로 처리한다.
 
-* 앱 번들 생성
-* 검증
-* ZIP 생성
-* GitHub Actions artifact 업로드
+1. 새 version tag 생성
+2. Rust CLI와 Swift host 빌드
+3. `Contents/Resources/bin/rebecca`를 내부부터 Developer ID로 서명
+4. hardened runtime과 secure timestamp를 적용해 앱 서명
+5. 서명 검증
+6. ZIP 생성
+7. `xcrun notarytool submit --wait` 및 `Accepted` 상태 확인
+8. ticket staple 및 검증
+9. GitHub Release와 ZIP asset 생성
+10. ZIP SHA-256으로 `jwoo0122/homebrew-tap/Casks/rebecca.rb` 갱신
 
-이를 공식 사용자 배포 완료 상태로 간주하지 않는다.
+Homebrew tap 갱신에는 `HOMEBREW_TAP_TOKEN` secret을 사용한다. Cask는 다음
+명령으로 설치할 수 있다.
 
-### 2. Signed and notarized release mode
+```bash
+brew tap jwoo0122/tap
+brew install --cask jwoo0122/tap/rebecca
+rebecca status
+```
 
-필요한 GitHub Secrets가 준비된 후 활성화한다.
-
-순서:
-
-1. Developer ID Application 인증서를 임시 keychain에 설치
-2. Rust 바이너리와 앱 번들을 적절한 순서로 서명
-3. hardened runtime 활성화
-4. 필요한 entitlements 적용
-5. `codesign --verify`
-6. 배포 파일을 ZIP 또는 DMG로 생성
-7. `xcrun notarytool submit --wait`
-8. `xcrun stapler staple`
-9. `xcrun stapler validate`
-10. `spctl --assess`
-11. GitHub Release에 업로드
-
-Apple 인증서와 private key는 저장소에 넣지 않는다. GitHub encrypted secret을 사용하고, workflow 종료 시 임시 keychain과 인증서 파일을 삭제한다.
-
-Apple ID password 방식과 App Store Connect API key 방식 중 CI에 더 적합한 방식을 조사한다. 가능한 경우 App Store Connect API key를 우선 검토한다. 선택한 인증 방식과 필요한 secret 이름을 문서화한다.
+Apple 인증서와 private key는 저장소에 넣지 않는다. GitHub encrypted secret을
+사용하고, workflow 종료 시 임시 keychain과 인증서 파일을 삭제한다.
 
 ## 접근성 및 화면 캡처 권한
 

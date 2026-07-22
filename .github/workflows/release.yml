@@ -2,16 +2,47 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
 jobs:
-  release:
-    runs-on: macos-26
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: version
+        name: Calculate release version
+        run: |
+          version="$(scripts/next-release-version.sh)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ -z "$version" ]]; then
+            echo "No release-worthy Conventional Commit since the latest tag."
+          else
+            echo "Next release: v$version"
+          fi
+
+  release:
+    if: needs.prepare.outputs.version != ''
+    needs: prepare
+    runs-on: macos-26
+    env:
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Print environment
@@ -44,7 +75,6 @@ jobs:
           security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          # Add to keychain search list so codesign can find it
           security list-keychains -d user -s "$KEYCHAIN_PATH" "$(security list-keychains -d user | tr -d '"')"
 
           CERT_PATH="$RUNNER_TEMP/developer-id.p12"
@@ -139,13 +169,67 @@ jobs:
       # --- Release ---
 
       - name: Create release archive
+        id: archive
         run: |
-          cd dist
-          ditto -c -k --keepParent Rebecca.app ../Rebecca-${{ github.ref_name }}.zip
+          archive="Rebecca-v${RELEASE_VERSION}.zip"
+          ditto -c -k --keepParent dist/Rebecca.app "$archive"
+          sha256="$(shasum -a 256 "$archive" | awk '{print $1}')"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+          echo "Archive: $archive"
+          echo "SHA-256: $sha256"
 
-      - uses: softprops/action-gh-release@v2
+      - name: Create release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${RELEASE_VERSION}"
+          existing_sha="$(git ls-remote origin "refs/tags/$tag^{}" | awk '{print $1}')"
+          if [[ -n "$existing_sha" ]]; then
+            if [[ "$existing_sha" != "$GITHUB_SHA" ]]; then
+              echo "error: tag already points to another commit: $tag" >&2
+              exit 1
+            fi
+            echo "Tag already exists at $GITHUB_SHA: $tag"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -c tag.gpgSign=false tag -a "$tag" "$GITHUB_SHA" -m "Release $tag"
+          git push origin "$tag"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: Rebecca-${{ github.ref_name }}.zip
+          tag_name: v${{ env.RELEASE_VERSION }}
+          target_commitish: ${{ github.sha }}
+          files: Rebecca-v${{ env.RELEASE_VERSION }}.zip
+
+      - name: Update Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          ASSET_SHA256: ${{ steps.archive.outputs.sha256 }}
+        run: |
+          tap_dir="$RUNNER_TEMP/homebrew-tap"
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TAP_TOKEN" | base64)"
+          git -c http.extraheader="$auth_header" clone \
+            --depth 1 \
+            https://github.com/jwoo0122/homebrew-tap.git \
+            "$tap_dir"
+
+          mkdir -p "$tap_dir/Casks"
+          ./scripts/render-homebrew-cask.sh "$RELEASE_VERSION" "$ASSET_SHA256" > "$tap_dir/Casks/rebecca.rb"
+
+          ruby -c "$tap_dir/Casks/rebecca.rb"
+
+          git -C "$tap_dir" config user.name "github-actions[bot]"
+          git -C "$tap_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$tap_dir" add Casks/rebecca.rb
+          if git -C "$tap_dir" diff --cached --quiet; then
+            echo "Homebrew tap already contains v$RELEASE_VERSION."
+          else
+            git -C "$tap_dir" commit -m "rebecca $RELEASE_VERSION"
+            git -C "$tap_dir" -c http.extraheader="$auth_header" push origin main
+          fi
 
       - name: Cleanup keychain
         if: always()

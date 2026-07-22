@@ -16,3 +16,4 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test --all-features --locked
+      - run: scripts/test-release-automation.sh
