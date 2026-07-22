@@ -1,7 +1,7 @@
 use std::{
     env, io,
     os::unix::net::UnixStream,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     thread,
     time::{Duration, Instant},
@@ -269,15 +269,17 @@ fn main() {
             depth,
         } => find(
             &cli,
-            role.as_deref(),
-            label.as_deref(),
-            label_contains.as_deref(),
-            value.as_deref(),
-            *enabled,
-            *focused,
-            window.as_deref(),
-            app.as_deref(),
-            *depth,
+            FindOptions {
+                role: role.as_deref(),
+                label: label.as_deref(),
+                label_contains: label_contains.as_deref(),
+                value: value.as_deref(),
+                enabled: *enabled,
+                focused: *focused,
+                window: window.as_deref(),
+                app: app.as_deref(),
+                depth: *depth,
+            },
         ),
         Commands::Press { element, revision } => press(&cli, element, *revision),
         Commands::SetValue {
@@ -1524,18 +1526,30 @@ fn tree(
     0
 }
 
-fn find(
-    cli: &Cli,
-    role: Option<&str>,
-    label: Option<&str>,
-    label_contains: Option<&str>,
-    value: Option<&str>,
+struct FindOptions<'a> {
+    role: Option<&'a str>,
+    label: Option<&'a str>,
+    label_contains: Option<&'a str>,
+    value: Option<&'a str>,
     enabled: Option<bool>,
     focused: Option<bool>,
-    window: Option<&str>,
-    app: Option<&str>,
+    window: Option<&'a str>,
+    app: Option<&'a str>,
     depth: u32,
-) -> i32 {
+}
+
+fn find(cli: &Cli, options: FindOptions<'_>) -> i32 {
+    let FindOptions {
+        role,
+        label,
+        label_contains,
+        value,
+        enabled,
+        focused,
+        window,
+        app,
+        depth,
+    } = options;
     let (window_arg, app_arg) = match (window, app) {
         (Some(w), None) => (Some(w.to_string()), None),
         (None, Some(a)) => (None, Some(a.to_string())),
@@ -1760,7 +1774,7 @@ fn handle_action_response(
     .filter(|f| response_value.get(*f).is_some())
     .collect::<Vec<_>>();
 
-    if !response_value.get("ok").map_or(true, |v| v == true) {
+    if !response_value.get("ok").is_none_or(|v| v == true) {
         let error = response_value.get("error");
         if error.is_none() {
             emit_error(
@@ -2227,7 +2241,7 @@ fn wait_for_host(path: &PathBuf, timeout: Duration, verbose: bool) -> io::Result
     }
 }
 
-fn unavailable(json_output: bool, socket: &PathBuf, error: impl std::fmt::Display) -> i32 {
+fn unavailable(json_output: bool, socket: &Path, error: impl std::fmt::Display) -> i32 {
     emit_error(
         json_output,
         "host_unavailable",

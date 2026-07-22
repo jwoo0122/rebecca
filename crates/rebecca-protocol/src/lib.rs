@@ -581,7 +581,7 @@ mod tests {
             response
         );
 
-        let value = serde_json::to_value(&response.focused_element.as_ref().unwrap()).unwrap();
+        let value = serde_json::to_value(response.focused_element.as_ref().unwrap()).unwrap();
         assert_eq!(value["label"], serde_json::Value::Null);
     }
 
