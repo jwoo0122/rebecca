@@ -44,6 +44,8 @@ fn status_json_uses_one_valid_json_object_and_sends_versioned_request() {
                     running: true,
                     version: "0.1.0".into(),
                     pid: 42,
+                    bundle_id: None,
+                    executable_path: None,
                 }),
                 permissions: Some(Permissions {
                     accessibility: PermissionState::Granted,
@@ -313,6 +315,8 @@ fn global_timeout_and_verbose_are_accepted_before_and_after_the_command() {
                         running: true,
                         version: "0.1.0".into(),
                         pid: 42,
+                        bundle_id: None,
+                        executable_path: None,
                     }),
                     permissions: Some(Permissions {
                         accessibility: PermissionState::Granted,

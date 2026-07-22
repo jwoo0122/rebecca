@@ -6,7 +6,9 @@ import Foundation
 
 private let protocolVersion = 1
 private let maximumFrameBytes = 64 * 1024
-private let hostVersion = "0.1.0"
+private let hostVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+private let hostBundleID = Bundle.main.bundleIdentifier ?? "unknown"
+private let hostExecutablePath = Bundle.main.executableURL?.path ?? "unknown"
 private let responseReserveNanoseconds: UInt64 = 100_000_000
 
 private struct Request: Decodable {
@@ -106,6 +108,16 @@ private struct Host: Encodable {
     let running: Bool
     let version: String
     let pid: Int32
+    let bundleID: String
+    let executablePath: String
+
+    enum CodingKeys: String, CodingKey {
+        case running
+        case version
+        case pid
+        case bundleID = "bundle_id"
+        case executablePath = "executable_path"
+    }
 }
 
 private struct Permissions: Encodable {
@@ -843,7 +855,13 @@ private final class SocketServer {
             protocolVersion: protocolVersion,
             requestID: request.requestID,
             ok: true,
-            host: Host(running: true, version: hostVersion, pid: getpid()),
+            host: Host(
+                running: true,
+                version: hostVersion,
+                pid: getpid(),
+                bundleID: hostBundleID,
+                executablePath: hostExecutablePath
+            ),
             permissions: Permissions(
                 accessibility: snapshot.accessibility,
                 screenRecording: snapshot.screenRecording

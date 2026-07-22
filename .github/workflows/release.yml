@@ -57,6 +57,7 @@ jobs:
       - name: Build macOS app (Rust CLI + Swift host)
         env:
           REBECCA_BUILD_PROFILE: release
+          REBECCA_RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
         run: ./scripts/build-macos-app.sh
 
       - name: Verify macOS app (pre-sign)

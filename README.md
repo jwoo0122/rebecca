@@ -25,7 +25,10 @@ brew install --cask jwoo0122/tap/rebecca
 rebecca status
 ```
 
-The cask installs `Rebecca.app` and exposes the bundled `rebecca` CLI.
+The cask installs `Rebecca.app` and exposes the bundled `rebecca` CLI. The CLI
+checks that the socket belongs to this installed host and automatically replaces a
+stale or older Rebecca host after an app update. For local development, set
+`REBECCA_APP_PATH` to the development app bundle before invoking the CLI.
 
 ## Build and test
 

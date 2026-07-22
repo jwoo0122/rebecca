@@ -254,6 +254,8 @@ response = send_request({
     "arguments": {},
 })
 assert response["ok"] is True, "host did not respond after the idle client timed out"
+assert response["host"]["bundle_id"]
+assert response["host"]["executable_path"]
 
 # Displays requires Screen Recording permission. The test host binary is not the app bundle,
 # so a prepared runner may return permission_denied; when permission is available, verify the

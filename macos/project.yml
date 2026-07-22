@@ -28,6 +28,8 @@ targets:
         PRODUCT_NAME: Rebecca
         PRODUCT_BUNDLE_IDENTIFIER: dev.jwoo0122.rebecca
         EXECUTABLE_NAME: Rebecca
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
         MACOSX_DEPLOYMENT_TARGET: "26.0"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Info.plist

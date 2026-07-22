@@ -7,6 +7,7 @@ readonly project="$root/macos/Rebecca.xcodeproj"
 readonly config="Release"
 readonly derived_data="$root/build/DerivedData"
 readonly dist_dir="$root/dist"
+readonly release_version="${REBECCA_RELEASE_VERSION:-0.1.0}"
 
 # Use Xcode beta if available
 if [[ -x "/Applications/Xcode-beta.app/Contents/Developer/usr/bin/xcodebuild" ]]; then
@@ -37,6 +38,8 @@ xcodebuild \
   -configuration "$config" \
   -derivedDataPath "$derived_data" \
   -destination 'platform=macOS' \
+  MARKETING_VERSION="$release_version" \
+  CURRENT_PROJECT_VERSION="1" \
   build
 
 # Locate the built app

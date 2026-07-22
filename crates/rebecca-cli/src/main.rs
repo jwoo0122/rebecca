@@ -328,6 +328,9 @@ fn main() {
 }
 
 fn status(cli: &Cli) -> i32 {
+    if let Err(code) = ensure_compatible_host(cli) {
+        return code;
+    }
     let custom_socket = cli.socket.is_some();
     let socket_path = cli.socket.clone().unwrap_or_else(default_socket_path);
     diagnostic(
@@ -517,6 +520,9 @@ fn status(cli: &Cli) -> i32 {
 }
 
 fn displays(cli: &Cli) -> i32 {
+    if let Err(code) = ensure_compatible_host(cli) {
+        return code;
+    }
     let custom_socket = cli.socket.is_some();
     let socket_path = cli.socket.clone().unwrap_or_else(default_socket_path);
     diagnostic(
@@ -1029,6 +1035,7 @@ fn capture(cli: &Cli, window_id: u32, output: &PathBuf) -> i32 {
 }
 
 fn request_value(cli: &Cli, command: &str, arguments: Value) -> Result<(String, Value), i32> {
+    ensure_compatible_host(cli)?;
     let custom_socket = cli.socket.is_some();
     let socket_path = cli.socket.clone().unwrap_or_else(default_socket_path);
     let mut stream = match UnixStream::connect(&socket_path) {
@@ -2181,6 +2188,184 @@ fn skill_content() -> String {
         .unwrap_or_else(|_| include_str!("../../../resources/SKILL.md").to_string())
 }
 
+const DEFAULT_APP_PATH: &str = "/Applications/Rebecca.app";
+const REBECCA_BUNDLE_ID: &str = "dev.jwoo0122.rebecca";
+
+fn installed_app_path() -> PathBuf {
+    env::var_os("REBECCA_APP_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_APP_PATH))
+}
+
+fn expected_host_executable() -> PathBuf {
+    let app_path = installed_app_path();
+    let executable = Command::new("/usr/bin/plutil")
+        .args(["-extract", "CFBundleExecutable", "raw", "-o", "-"])
+        .arg(app_path.join("Contents/Info.plist"))
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "Rebecca".to_string());
+    app_path.join("Contents/MacOS").join(executable)
+}
+
+fn installed_app_version() -> Option<String> {
+    let output = Command::new("/usr/bin/plutil")
+        .args(["-extract", "CFBundleShortVersionString", "raw", "-o", "-"])
+        .arg(installed_app_path().join("Contents/Info.plist"))
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let version = String::from_utf8(output.stdout).ok()?.trim().to_string();
+    (!version.is_empty()).then_some(version)
+}
+
+fn host_matches_installation(host: &rebecca_protocol::HostStatus) -> bool {
+    host.running
+        && host.pid > 0
+        && host.bundle_id.as_deref() == Some(REBECCA_BUNDLE_ID)
+        && host.executable_path.as_deref()
+            == Some(expected_host_executable().to_string_lossy().as_ref())
+        && installed_app_version()
+            .as_deref()
+            .is_none_or(|version| host.version == version)
+}
+
+fn probe_host(
+    stream: &mut UnixStream,
+    timeout: Duration,
+) -> io::Result<rebecca_protocol::HostStatus> {
+    stream.set_read_timeout(Some(timeout))?;
+    stream.set_write_timeout(Some(timeout))?;
+    let request_id = Uuid::new_v4().to_string();
+    let request = Request {
+        protocol_version: PROTOCOL_VERSION,
+        request_id,
+        command: "status".into(),
+        arguments: json!({}),
+    };
+    write_message(stream, &request)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
+    let value: Value = read_message(stream)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
+    let response: StatusResponse = serde_json::from_value(value)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
+    if response.protocol_version != PROTOCOL_VERSION || !response.ok {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "host status handshake was rejected",
+        ));
+    }
+    response.host.ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "host status handshake omitted host metadata",
+        )
+    })
+}
+
+fn wait_for_socket_closed(path: &Path, timeout: Duration) -> bool {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if UnixStream::connect(path).is_err() {
+            return true;
+        }
+        if Instant::now() >= deadline {
+            return false;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+fn terminate_host(pid: u32, path: &Path, timeout: Duration, verbose: bool) -> bool {
+    diagnostic(
+        verbose,
+        format!("restarting incompatible Rebecca host pid {pid}"),
+    );
+    let pid = pid.to_string();
+    let terminated = Command::new("/bin/kill")
+        .args(["-TERM", &pid])
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false);
+    if !terminated || wait_for_socket_closed(path, timeout) {
+        return terminated;
+    }
+
+    let _ = Command::new("/bin/kill").args(["-KILL", &pid]).status();
+    wait_for_socket_closed(path, timeout)
+}
+
+fn ensure_compatible_host(cli: &Cli) -> Result<(), i32> {
+    if cli.socket.is_some() {
+        return Ok(());
+    }
+
+    let socket_path = cli.socket.clone().unwrap_or_else(default_socket_path);
+    let timeout = cli.timeout.unwrap_or(START_TIMEOUT);
+    for attempt in 0..2 {
+        let stream = match UnixStream::connect(&socket_path) {
+            Ok(stream) => stream,
+            Err(error) => {
+                if cli.no_start {
+                    return Err(unavailable(cli.json, &socket_path, error));
+                }
+                launch_app().map_err(|error| unavailable(cli.json, &socket_path, error))?;
+                wait_for_host(&socket_path, timeout, cli.verbose)
+                    .map_err(|error| unavailable(cli.json, &socket_path, error))?;
+                continue;
+            }
+        };
+
+        let mut stream = stream;
+        match probe_host(&mut stream, cli.timeout.unwrap_or(IO_TIMEOUT)) {
+            Ok(host) if host_matches_installation(&host) => return Ok(()),
+            Ok(host) => {
+                diagnostic(
+                    cli.verbose,
+                    format!(
+                        "host mismatch: pid={}, version={}, bundle_id={:?}, executable_path={:?}",
+                        host.pid, host.version, host.bundle_id, host.executable_path
+                    ),
+                );
+                if cli.no_start || !terminate_host(host.pid, &socket_path, timeout, cli.verbose) {
+                    emit_error(
+                        cli.json,
+                        "protocol_mismatch",
+                        "A different Rebecca host is already running.",
+                        Some(json!({"host_pid": host.pid})),
+                    );
+                    return Err(11);
+                }
+            }
+            Err(error) => {
+                if cli.no_start || attempt == 1 {
+                    return Err(unavailable(cli.json, &socket_path, error));
+                }
+                let _ = wait_for_socket_closed(&socket_path, timeout);
+            }
+        }
+
+        if attempt == 1 {
+            break;
+        }
+        launch_app().map_err(|error| unavailable(cli.json, &socket_path, error))?;
+        wait_for_host(&socket_path, timeout, cli.verbose)
+            .map_err(|error| unavailable(cli.json, &socket_path, error))?;
+    }
+
+    Err(unavailable(
+        cli.json,
+        &socket_path,
+        "compatible Rebecca host did not start",
+    ))
+}
+
 fn parse_duration(value: &str) -> Result<Duration, String> {
     let (amount, unit) = value
         .strip_suffix("ms")
@@ -2215,7 +2400,7 @@ fn default_socket_path() -> PathBuf {
 }
 
 fn launch_app() -> io::Result<()> {
-    let status = Command::new("open").args(["-a", "Rebecca"]).status()?;
+    let status = Command::new("open").arg(installed_app_path()).status()?;
     if status.success() {
         Ok(())
     } else {

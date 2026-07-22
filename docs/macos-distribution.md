@@ -51,7 +51,10 @@ Until `AppIcon.icon` is added, the fallback `resources/Rebecca.icns` is used.
 - **CLI binary** (Rust): `Contents/Resources/bin/rebecca` — user-facing command-line tool
 - **Socket**: `~/Library/Application Support/Rebecca/runtime/control.sock`
 
-The CLI auto-launches the host app when the socket is unavailable.
+The CLI auto-launches the host app when the socket is unavailable. Before using
+the socket, it checks the host bundle ID, executable path, and version. If an old
+or development host owns the socket, the CLI terminates it and launches the
+installed app explicitly. Set `REBECCA_APP_PATH` to use a development bundle.
 
 ## CI
 
