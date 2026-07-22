@@ -35,27 +35,24 @@ jobs:
           DEVELOPER_ID_CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
           DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
         run: |
-          # Create a temporary keychain
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          # Import the .p12 certificate
           CERT_PATH="$RUNNER_TEMP/developer-id.p12"
           echo "$DEVELOPER_ID_CERT_P12" | base64 --decode > "$CERT_PATH"
           security import "$CERT_PATH" \
             -P "$DEVELOPER_ID_CERT_PASSWORD" \
-            -A -t cert \
+            -f pkcs12 \
+            -A \
             -k "$KEYCHAIN_PATH"
 
-          # Extract the signing identity name
           SIGNING_IDENTITY=$(security find-identity -p codesigning -v "$KEYCHAIN_PATH" | head -1 | sed 's/.*"\(.*\)".*/\1/')
           echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
           echo "Found signing identity: $SIGNING_IDENTITY"
 
-          # Allow codesign to access the key without prompting
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
       - name: Sign app
@@ -81,10 +78,8 @@ jobs:
           KEY_PATH="$RUNNER_TEMP/authkey.p8"
           echo "$ASC_KEY_CONTENT" | base64 --decode > "$KEY_PATH"
 
-          # Create ZIP for notarization
           ditto -c -k --keepParent dist/Rebecca.app "$RUNNER_TEMP/Rebecca.zip"
 
-          # Submit and wait
           xcrun notarytool submit "$RUNNER_TEMP/Rebecca.zip" \
             --key "$KEY_PATH" \
             --key-id "$ASC_KEY_ID" \
