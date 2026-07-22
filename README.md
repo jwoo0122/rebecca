@@ -1,4 +1,8 @@
-# Rebecca
+<p align="center">
+  <img src="icon.png" alt="Rebecca icon" width="160">
+</p>
+
+<h1 align="center">Rebecca</h1>
 
 Rebecca is a macOS computer-use tool with a command-line client and a
 permission-bearing `Rebecca.app` host. The app performs protected macOS
