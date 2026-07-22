@@ -41,6 +41,9 @@ jobs:
           security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
+          # Add to keychain search list so codesign can find it
+          security list-keychains -d user -s "$KEYCHAIN_PATH" "$(security list-keychains -d user | tr -d '"')"
+
           CERT_PATH="$RUNNER_TEMP/developer-id.p12"
           echo "$DEVELOPER_ID_CERT_P12" | base64 --decode > "$CERT_PATH"
           security import "$CERT_PATH" \
@@ -51,14 +54,17 @@ jobs:
 
           SIGNING_IDENTITY=$(security find-identity -p codesigning -v "$KEYCHAIN_PATH" | head -1 | sed 's/.*"\(.*\)".*/\1/')
           echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "SIGNING_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "Found signing identity: $SIGNING_IDENTITY"
 
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
       - name: Sign app
         run: |
           codesign --force --deep --options runtime \
             --entitlements macos/Rebecca.entitlements \
+            --keychain "$SIGNING_KEYCHAIN" \
             --sign "$SIGNING_IDENTITY" \
             dist/Rebecca.app
 
