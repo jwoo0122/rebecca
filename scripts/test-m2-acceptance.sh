@@ -3,12 +3,16 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly root
+export REBECCA_APP_PATH="$root/build/Rebecca.app"
 host_exe="$root/build/Rebecca.app/Contents/MacOS/rebecca-host"
 fixture_exe="$root/build/RebeccaFixture.app/Contents/MacOS/rebecca-fixture"
+sentinel_app="/System/Applications/Calculator.app"
+sentinel_exe="$sentinel_app/Contents/MacOS/Calculator"
 socket="$HOME/Library/Application Support/Rebecca/runtime/control.sock"
-host_pid=""; fixture_pid=""
+host_pid=""; fixture_pid=""; sentinel_pid=""
 cleanup() {
   [[ -n "$fixture_pid" ]] && kill "$fixture_pid" 2>/dev/null || true
+  [[ -n "$sentinel_pid" ]] && kill "$sentinel_pid" 2>/dev/null || true
   [[ -n "$host_pid" ]] && kill "$host_pid" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -17,7 +21,7 @@ pkill -TERM -f "$host_exe" 2>/dev/null || true
 pkill -TERM -f "$fixture_exe" 2>/dev/null || true
 sleep 1
 
-open "$root/build/Rebecca.app"
+open -n "$root/build/Rebecca.app"
 for _ in {1..50}; do
   host_pid="$(pgrep -f "$host_exe" | head -n1 || true)"
   [[ -n "$host_pid" && -S "$socket" ]] && break
@@ -25,7 +29,7 @@ for _ in {1..50}; do
 done
 [[ -n "$host_pid" && -S "$socket" ]] || { echo "host did not start" >&2; exit 1; }
 
-open "$root/build/RebeccaFixture.app"
+open -n "$root/build/RebeccaFixture.app"
 for _ in {1..50}; do
   fixture_pid="$(pgrep -f "$fixture_exe" | head -n1 || true)"
   [[ -n "$fixture_pid" ]] && break
@@ -33,12 +37,26 @@ for _ in {1..50}; do
 done
 [[ -n "$fixture_pid" ]] || { echo "fixture did not start" >&2; exit 1; }
 
-osascript -e 'tell application "System Events" to set frontmost of (first process whose name contains "Fixture") to true' 2>/dev/null || true
+open -n "$sentinel_app"
+for _ in {1..50}; do
+  sentinel_pid="$(pgrep -f "$sentinel_exe" | tail -n1 || true)"
+  [[ -n "$sentinel_pid" ]] && break
+  sleep .1
+done
+[[ -n "$sentinel_pid" ]] || { echo "sentinel app did not start" >&2; exit 1; }
+osascript -e 'tell application "System Events" to set frontmost of (first process whose name is "Calculator") to true' 2>/dev/null || true
 sleep 1
 
 mkdir -p /tmp/cu-m2
 
 cli() { cargo run -q -p rebecca-cli -- "$@"; }
+assert_sentinel_frontmost() {
+  frontmost="$(osascript -e 'tell application "System Events" to name of first process whose frontmost is true' 2>/dev/null || true)"
+  [[ "$frontmost" == "Calculator" ]] || {
+    echo "expected Calculator to remain frontmost, got: $frontmost" >&2
+    exit 1
+  }
+}
 
 # 1. Tree query - find fixture elements
 echo "=== 1. Tree query ==="
@@ -105,6 +123,8 @@ print(f"  method={data['method']}, rev {data['before_revision']} -> {data['after
 print("  PASS")
 PY
 
+assert_sentinel_frontmost
+
 # 3. Verify status changed
 echo "=== 3. Verify status change ==="
 cli tree --app dev.jwoo0122.rebecca-fixture --json --no-start > /tmp/cu-m2/tree2.json
@@ -146,6 +166,8 @@ print(f"  method={data['method']}, value set to 'hello world'")
 print("  PASS")
 PY
 
+assert_sentinel_frontmost
+
 # 5. Secure field rejection
 echo "=== 5. Secure field rejection ==="
 secure_id=$(cat /tmp/cu-m2/secure_id.txt)
@@ -176,34 +198,49 @@ print(f"  error_code={data['error']['code']}")
 print("  PASS")
 PY
 
+# Resolve a target window for all non-AX input actions.
+echo "=== Resolve targeted input window ==="
+cli windows --app dev.jwoo0122.rebecca-fixture --json --no-start > /tmp/cu-m2/target_windows.json
+fixture_window_id=$(python3 - <<'PY2'
+import json
+with open("/tmp/cu-m2/target_windows.json") as f:
+    data = json.load(f)
+fixture_windows = [w for w in data["windows"] if w.get("title") == "Rebecca Fixture"]
+assert len(fixture_windows) >= 1, "Fixture window not found"
+print(fixture_windows[0]["window_id"])
+PY2
+)
+echo "  window_id=$fixture_window_id"
+
 # 7. Type Korean text
 echo "=== 7. Type Korean text ==="
-cli type --text "안녕" --json --no-start > /tmp/cu-m2/type_korean.json 2>/dev/null || true
+cli type --window-id "$fixture_window_id" --text "안녕" --json --no-start > /tmp/cu-m2/type_korean.json
 python3 <<'PY'
 import json
 with open("/tmp/cu-m2/type_korean.json") as f:
     data = json.load(f)
-if data["ok"]:
-    assert data["executed"] is True
-    print(f"  method={data['method']}")
-else:
-    print(f"  type error (ok if no focused field): {data.get('error', {}).get('code', 'unknown')}")
+assert data["ok"] is True, f"type failed: {data}"
+assert data["executed"] is True
+assert "to_pid" in data["method"]
+print(f"  method={data['method']}")
 print("  PASS")
 PY
+assert_sentinel_frontmost
 
 # 8. Key press (Escape)
 echo "=== 8. Key press (Escape) ==="
-cli key --key escape --json --no-start > /tmp/cu-m2/key_escape.json
+cli key --window-id "$fixture_window_id" --key escape --json --no-start > /tmp/cu-m2/key_escape.json
 python3 <<'PY'
 import json
 with open("/tmp/cu-m2/key_escape.json") as f:
     data = json.load(f)
 assert data["ok"] is True, f"key failed: {data}"
 assert data["executed"] is True
-assert "key" in data["method"]
+assert "key_to_pid" in data["method"]
 print(f"  method={data['method']}")
 print("  PASS")
 PY
+assert_sentinel_frontmost
 
 # 9. Coordinate-based click
 echo "=== 9. Coordinate click ==="
@@ -222,33 +259,64 @@ x = frame["x"] + 50
 y = frame["y"] + 50
 result = subprocess.run(
     ["cargo", "run", "-q", "-p", "rebecca-cli", "--",
-     "click", "--x", str(x), "--y", str(y), "--json", "--no-start"],
+     "click", "--window-id", str(w["window_id"]), "--x", str(x), "--y", str(y), "--json", "--no-start"],
     capture_output=True, text=True
 )
 resp = json.loads(result.stdout)
 assert resp["ok"] is True, f"click failed: {resp}"
 assert resp["executed"] is True
-assert "click" in resp["method"]
+assert "click_to_pid" in resp["method"]
 print(f"  method={resp['method']}, clicked at ({x:.0f}, {y:.0f})")
 print("  PASS")
 PY
+assert_sentinel_frontmost
 
 # 10. Scroll
 echo "=== 10. Scroll ==="
-cli scroll --dy -100 --json --no-start > /tmp/cu-m2/scroll.json
+cli scroll --window-id "$fixture_window_id" --dy -100 --json --no-start > /tmp/cu-m2/scroll.json
 python3 <<'PY'
 import json
 with open("/tmp/cu-m2/scroll.json") as f:
     data = json.load(f)
 assert data["ok"] is True, f"scroll failed: {data}"
 assert data["executed"] is True
-assert "scroll" in data["method"]
+assert "scroll_to_pid" in data["method"]
+print(f"  method={data['method']}")
+print("  PASS")
+PY
+assert_sentinel_frontmost
+
+# 11. Targeted pointer move
+echo "=== 11. Targeted move ==="
+cli move --window-id "$fixture_window_id" --x 0 --y 0 --json --no-start > /tmp/cu-m2/move.json
+python3 <<'PY'
+import json
+with open("/tmp/cu-m2/move.json") as f:
+    data = json.load(f)
+assert data["ok"] is True, f"move failed: {data}"
+assert "move_to_pid" in data["method"]
+print(f"  method={data['method']}")
+print("  PASS")
+PY
+assert_sentinel_frontmost
+
+# 12. Targeted drag
+echo "=== 12. Targeted drag ==="
+cli drag --window-id "$fixture_window_id" --from-x 0 --from-y 0 --to-x 1 --to-y 1 --duration-ms 1 --json --no-start > /tmp/cu-m2/drag.json
+python3 <<'PY'
+import json
+with open("/tmp/cu-m2/drag.json") as f:
+    data = json.load(f)
+assert data["ok"] is True, f"drag failed: {data}"
+assert "drag_to_pid" in data["method"]
 print(f"  method={data['method']}")
 print("  PASS")
 PY
 
-# 11. Window move
-echo "=== 11. Window move ==="
+assert_sentinel_frontmost
+
+# 13. Window move
+echo "=== 13. Window move ==="
 python3 <<'PY'
 import json, subprocess
 with open("/tmp/cu-m2/windows.json") as f:
@@ -273,8 +341,8 @@ print(f"  method={resp['method']}, window {wid} moved to ({nx:.0f}, {ny:.0f})")
 print("  PASS")
 PY
 
-# 12. Window resize
-echo "=== 12. Window resize ==="
+# 14. Window resize
+echo "=== 14. Window resize ==="
 python3 <<'PY'
 import json, subprocess
 with open("/tmp/cu-m2/windows.json") as f:

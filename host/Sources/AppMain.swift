@@ -1309,6 +1309,41 @@ private final class SocketServer {
         }
     }
 
+    private func targetPID(for request: Request, to fd: Int32, deadline: UInt64) -> pid_t? {
+        guard let windowID = request.arguments["window_id"]?.uint32Value, windowID > 0 else {
+            writeFailure(
+                "\(request.command) requires a positive window_id for targeted input.",
+                code: "target_window_required",
+                request: request,
+                to: fd,
+                deadline: deadline
+            )
+            return nil
+        }
+        do {
+            return try findWindowOwnerPID(windowID: windowID, deadline: operationDeadline(before: deadline))
+        } catch let error as WindowQueryError {
+            let mapped = windowError(error)
+            writeFailure(
+                mapped.message,
+                code: mapped.code,
+                request: request,
+                to: fd,
+                deadline: deadline
+            )
+            return nil
+        } catch {
+            writeFailure(
+                error.localizedDescription,
+                code: "target_not_found",
+                request: request,
+                to: fd,
+                deadline: deadline
+            )
+            return nil
+        }
+    }
+
     private func handlePress(_ request: Request, to fd: Int32, deadline: UInt64) {
         guard let elementID = request.arguments["element"]?.stringValue, !elementID.isEmpty,
               let revisionValue = request.arguments["revision"]?.uint32Value else {
@@ -1404,12 +1439,15 @@ private final class SocketServer {
                 result = try axPressElement(element, elementID: elementID, providedRevision: rev, cache: elementCache, observationTracker: observationRevisionTracker, deadline: deadline)
             } else if let x = request.arguments["x"]?.numberValue,
                       let y = request.arguments["y"]?.numberValue {
+                guard let targetPID = targetPID(for: request, to: fd, deadline: deadline) else { return }
                 let clickCount = Int(request.arguments["count"]?.numberValue ?? 1)
-                try cgClick(x: x, y: y, clickCount: clickCount)
+                try withUserFocusGuard {
+                    try cgClick(x: x, y: y, clickCount: clickCount, targetPID: targetPID)
+                }
                 let beforeRev = elementCache.currentRevision
                 let afterRev = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "click", elementID: "coord")))
                 elementCache.beginRevision(afterRev)
-                result = ActionResult(executed: true, method: "cg_click", beforeRevision: beforeRev, afterRevision: afterRev)
+                result = ActionResult(executed: true, method: "cg_click_to_pid", beforeRevision: beforeRev, afterRevision: afterRev)
             } else {
                 writeFailure("click requires element+revision or x+y.", code: "invalid_input", request: request, to: fd, deadline: deadline)
                 return
@@ -1444,11 +1482,14 @@ private final class SocketServer {
                 }
                 result = try axSetValue(element, elementID: elementID, providedRevision: rev, value: text, cache: elementCache, observationTracker: observationRevisionTracker, deadline: deadline)
             } else {
-                try cgType(text)
+                guard let targetPID = targetPID(for: request, to: fd, deadline: deadline) else { return }
+                try withUserFocusGuard {
+                    try cgType(text, targetPID: targetPID)
+                }
                 let beforeRev = elementCache.currentRevision
                 let afterRev = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "type", elementID: "keyboard")))
                 elementCache.beginRevision(afterRev)
-                result = ActionResult(executed: true, method: "cg_type", beforeRevision: beforeRev, afterRevision: afterRev)
+                result = ActionResult(executed: true, method: "cg_type_to_pid", beforeRevision: beforeRev, afterRevision: afterRev)
             }
             writeResponse(ActionResponse(protocolVersion: protocolVersion, requestID: request.requestID, ok: true, action: "type", executed: result.executed, method: result.method, beforeRevision: result.beforeRevision, afterRevision: result.afterRevision, error: nil), to: fd, deadline: deadline)
         } catch let error as ActionError {
@@ -1467,12 +1508,15 @@ private final class SocketServer {
             writeFailure("key requires chord or key.", code: "invalid_input", request: request, to: fd, deadline: deadline)
             return
         }
+        guard let targetPID = targetPID(for: request, to: fd, deadline: deadline) else { return }
         do {
-            try cgKey(chord: chord)
+            try withUserFocusGuard {
+                try cgKey(chord: chord, targetPID: targetPID)
+            }
             let beforeRev = elementCache.currentRevision
             let afterRev = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "key", elementID: chord)))
             elementCache.beginRevision(afterRev)
-            writeResponse(ActionResponse(protocolVersion: protocolVersion, requestID: request.requestID, ok: true, action: "key", executed: true, method: "cg_key", beforeRevision: beforeRev, afterRevision: afterRev, error: nil), to: fd, deadline: deadline)
+            writeResponse(ActionResponse(protocolVersion: protocolVersion, requestID: request.requestID, ok: true, action: "key", executed: true, method: "cg_key_to_pid", beforeRevision: beforeRev, afterRevision: afterRev, error: nil), to: fd, deadline: deadline)
         } catch let error as ActionError {
             let mapped = actionError(error)
             writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
@@ -1487,12 +1531,15 @@ private final class SocketServer {
             writeFailure("move requires x and y.", code: "invalid_input", request: request, to: fd, deadline: deadline)
             return
         }
+        guard let targetPID = targetPID(for: request, to: fd, deadline: deadline) else { return }
         do {
-            try cgMove(x: x, y: y)
+            try withUserFocusGuard {
+                try cgMove(x: x, y: y, targetPID: targetPID)
+            }
             let beforeRev = elementCache.currentRevision
             let afterRev = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "move", elementID: "coord")))
             elementCache.beginRevision(afterRev)
-            writeResponse(ActionResponse(protocolVersion: protocolVersion, requestID: request.requestID, ok: true, action: "move", executed: true, method: "cg_move", beforeRevision: beforeRev, afterRevision: afterRev, error: nil), to: fd, deadline: deadline)
+            writeResponse(ActionResponse(protocolVersion: protocolVersion, requestID: request.requestID, ok: true, action: "move", executed: true, method: "cg_move_to_pid", beforeRevision: beforeRev, afterRevision: afterRev, error: nil), to: fd, deadline: deadline)
         } catch let error as ActionError {
             let mapped = actionError(error)
             writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
@@ -1508,12 +1555,15 @@ private final class SocketServer {
             writeFailure("scroll requires dx or dy.", code: "invalid_input", request: request, to: fd, deadline: deadline)
             return
         }
+        guard let targetPID = targetPID(for: request, to: fd, deadline: deadline) else { return }
         do {
-            try cgScroll(dx: dx, dy: dy)
+            try withUserFocusGuard {
+                try cgScroll(dx: dx, dy: dy, targetPID: targetPID)
+            }
             let beforeRev = elementCache.currentRevision
             let afterRev = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "scroll", elementID: "coord")))
             elementCache.beginRevision(afterRev)
-            writeResponse(ActionResponse(protocolVersion: protocolVersion, requestID: request.requestID, ok: true, action: "scroll", executed: true, method: "cg_scroll", beforeRevision: beforeRev, afterRevision: afterRev, error: nil), to: fd, deadline: deadline)
+            writeResponse(ActionResponse(protocolVersion: protocolVersion, requestID: request.requestID, ok: true, action: "scroll", executed: true, method: "cg_scroll_to_pid", beforeRevision: beforeRev, afterRevision: afterRev, error: nil), to: fd, deadline: deadline)
         } catch let error as ActionError {
             let mapped = actionError(error)
             writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
@@ -1531,12 +1581,15 @@ private final class SocketServer {
             return
         }
         let durationMs = request.arguments["duration_ms"]?.numberValue ?? 500
+        guard let targetPID = targetPID(for: request, to: fd, deadline: deadline) else { return }
         do {
-            try cgDrag(fromX: fromX, fromY: fromY, toX: toX, toY: toY, durationMs: durationMs)
+            try withUserFocusGuard {
+                try cgDrag(fromX: fromX, fromY: fromY, toX: toX, toY: toY, durationMs: durationMs, targetPID: targetPID)
+            }
             let beforeRev = elementCache.currentRevision
             let afterRev = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "drag", elementID: "coord")))
             elementCache.beginRevision(afterRev)
-            writeResponse(ActionResponse(protocolVersion: protocolVersion, requestID: request.requestID, ok: true, action: "drag", executed: true, method: "cg_drag", beforeRevision: beforeRev, afterRevision: afterRev, error: nil), to: fd, deadline: deadline)
+            writeResponse(ActionResponse(protocolVersion: protocolVersion, requestID: request.requestID, ok: true, action: "drag", executed: true, method: "cg_drag_to_pid", beforeRevision: beforeRev, afterRevision: afterRev, error: nil), to: fd, deadline: deadline)
         } catch let error as ActionError {
             let mapped = actionError(error)
             writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)

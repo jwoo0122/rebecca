@@ -129,6 +129,8 @@ enum Commands {
         x: Option<f64>,
         #[arg(long, allow_hyphen_values = true)]
         y: Option<f64>,
+        #[arg(long = "window-id")]
+        window_id: Option<u32>,
         #[arg(long, default_value_t = 1)]
         count: u32,
     },
@@ -140,6 +142,8 @@ enum Commands {
         element: Option<String>,
         #[arg(long)]
         revision: Option<u64>,
+        #[arg(long = "window-id")]
+        window_id: Option<u32>,
     },
     /// Press a key or chord.
     Key {
@@ -147,6 +151,8 @@ enum Commands {
         chord: Option<String>,
         #[arg(long)]
         key: Option<String>,
+        #[arg(long = "window-id")]
+        window_id: u32,
     },
     /// Move the cursor to a coordinate.
     Move {
@@ -154,6 +160,8 @@ enum Commands {
         x: f64,
         #[arg(long, allow_hyphen_values = true)]
         y: f64,
+        #[arg(long = "window-id")]
+        window_id: u32,
     },
     /// Scroll vertically or horizontally.
     Scroll {
@@ -161,6 +169,8 @@ enum Commands {
         dx: Option<f64>,
         #[arg(long, allow_hyphen_values = true)]
         dy: Option<f64>,
+        #[arg(long = "window-id")]
+        window_id: u32,
     },
     /// Drag from one coordinate to another.
     Drag {
@@ -174,6 +184,8 @@ enum Commands {
         to_y: f64,
         #[arg(long)]
         duration_ms: Option<u64>,
+        #[arg(long = "window-id")]
+        window_id: u32,
     },
     /// Activate an application by bundle ID.
     Activate {
@@ -292,23 +304,46 @@ fn main() {
             revision,
             x,
             y,
+            window_id,
             count,
-        } => click(&cli, element.as_deref(), *revision, *x, *y, *count),
+        } => click(
+            &cli,
+            element.as_deref(),
+            *revision,
+            *x,
+            *y,
+            *window_id,
+            *count,
+        ),
         Commands::Type {
             text,
             element,
             revision,
-        } => type_text(&cli, text, element.as_deref(), *revision),
-        Commands::Key { chord, key } => key_cmd(&cli, chord.as_deref(), key.as_deref()),
-        Commands::Move { x, y } => move_cursor(&cli, *x, *y),
-        Commands::Scroll { dx, dy } => scroll(&cli, *dx, *dy),
+            window_id,
+        } => type_text(&cli, text, element.as_deref(), *revision, *window_id),
+        Commands::Key {
+            chord,
+            key,
+            window_id,
+        } => key_cmd(&cli, chord.as_deref(), key.as_deref(), *window_id),
+        Commands::Move { x, y, window_id } => move_cursor(&cli, *x, *y, *window_id),
+        Commands::Scroll { dx, dy, window_id } => scroll(&cli, *dx, *dy, *window_id),
         Commands::Drag {
             from_x,
             from_y,
             to_x,
             to_y,
             duration_ms,
-        } => drag(&cli, *from_x, *from_y, *to_x, *to_y, *duration_ms),
+            window_id,
+        } => drag(
+            &cli,
+            *from_x,
+            *from_y,
+            *to_x,
+            *to_y,
+            *duration_ms,
+            *window_id,
+        ),
         Commands::Activate { app } => activate(&cli, app),
         Commands::WindowMove { window_id, x, y } => window_move(&cli, *window_id, *x, *y),
         Commands::WindowResize {
@@ -1923,6 +1958,7 @@ fn click(
     revision: Option<u64>,
     x: Option<f64>,
     y: Option<f64>,
+    window_id: Option<u32>,
     count: u32,
 ) -> i32 {
     let mut arguments = json!({"count": count});
@@ -1940,8 +1976,18 @@ fn click(
             return 2;
         }
     } else if let (Some(x), Some(y)) = (x, y) {
+        let Some(window_id) = window_id.filter(|window_id| *window_id > 0) else {
+            emit_error(
+                cli.json,
+                "target_window_required",
+                "window-id is required with coordinate input.",
+                None,
+            );
+            return 2;
+        };
         arguments["x"] = json!(x);
         arguments["y"] = json!(y);
+        arguments["window_id"] = json!(window_id);
     } else {
         emit_error(
             cli.json,
@@ -1958,7 +2004,13 @@ fn click(
     handle_action_response(cli, &request_id, response_value, "click")
 }
 
-fn type_text(cli: &Cli, text: &str, element: Option<&str>, revision: Option<u64>) -> i32 {
+fn type_text(
+    cli: &Cli,
+    text: &str,
+    element: Option<&str>,
+    revision: Option<u64>,
+    window_id: Option<u32>,
+) -> i32 {
     if text.is_empty() {
         emit_error(cli.json, "invalid_input", "text must not be empty.", None);
         return 2;
@@ -1977,6 +2029,17 @@ fn type_text(cli: &Cli, text: &str, element: Option<&str>, revision: Option<u64>
             );
             return 2;
         }
+    } else {
+        let Some(window_id) = window_id.filter(|window_id| *window_id > 0) else {
+            emit_error(
+                cli.json,
+                "target_window_required",
+                "window-id is required without element.",
+                None,
+            );
+            return 2;
+        };
+        arguments["window_id"] = json!(window_id);
     }
     let (request_id, response_value) = match request_value(cli, "type", arguments) {
         Ok(v) => v,
@@ -1985,8 +2048,17 @@ fn type_text(cli: &Cli, text: &str, element: Option<&str>, revision: Option<u64>
     handle_action_response(cli, &request_id, response_value, "type")
 }
 
-fn key_cmd(cli: &Cli, chord: Option<&str>, key: Option<&str>) -> i32 {
-    let mut arguments = json!({});
+fn key_cmd(cli: &Cli, chord: Option<&str>, key: Option<&str>, window_id: u32) -> i32 {
+    if window_id == 0 {
+        emit_error(
+            cli.json,
+            "target_window_required",
+            "window-id must be greater than zero.",
+            None,
+        );
+        return 2;
+    }
+    let mut arguments = json!({"window_id": window_id});
     if let Some(c) = chord {
         arguments["chord"] = json!(c);
     } else if let Some(k) = key {
@@ -2007,8 +2079,17 @@ fn key_cmd(cli: &Cli, chord: Option<&str>, key: Option<&str>) -> i32 {
     handle_action_response(cli, &request_id, response_value, "key")
 }
 
-fn move_cursor(cli: &Cli, x: f64, y: f64) -> i32 {
-    let arguments = json!({"x": x, "y": y});
+fn move_cursor(cli: &Cli, x: f64, y: f64, window_id: u32) -> i32 {
+    if window_id == 0 {
+        emit_error(
+            cli.json,
+            "target_window_required",
+            "window-id must be greater than zero.",
+            None,
+        );
+        return 2;
+    }
+    let arguments = json!({"x": x, "y": y, "window_id": window_id});
     let (request_id, response_value) = match request_value(cli, "move", arguments) {
         Ok(v) => v,
         Err(code) => return code,
@@ -2016,8 +2097,17 @@ fn move_cursor(cli: &Cli, x: f64, y: f64) -> i32 {
     handle_action_response(cli, &request_id, response_value, "move")
 }
 
-fn scroll(cli: &Cli, dx: Option<f64>, dy: Option<f64>) -> i32 {
-    let mut arguments = json!({});
+fn scroll(cli: &Cli, dx: Option<f64>, dy: Option<f64>, window_id: u32) -> i32 {
+    if window_id == 0 {
+        emit_error(
+            cli.json,
+            "target_window_required",
+            "window-id must be greater than zero.",
+            None,
+        );
+        return 2;
+    }
+    let mut arguments = json!({"window_id": window_id});
     if let Some(dx) = dx {
         arguments["dx"] = json!(dx);
     }
@@ -2042,8 +2132,19 @@ fn drag(
     to_x: f64,
     to_y: f64,
     duration_ms: Option<u64>,
+    window_id: u32,
 ) -> i32 {
+    if window_id == 0 {
+        emit_error(
+            cli.json,
+            "target_window_required",
+            "window-id must be greater than zero.",
+            None,
+        );
+        return 2;
+    }
     let mut arguments = json!({
+        "window_id": window_id,
         "from_x": from_x,
         "from_y": from_y,
         "to_x": to_x,

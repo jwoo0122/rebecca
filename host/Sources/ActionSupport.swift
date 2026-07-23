@@ -54,27 +54,12 @@ func axPressElement(
         throw ActionError.actionNotSupported("AXPress")
     }
 
-    // Try AXPress without window activation
-    var pressError = AXUIElementPerformAction(element, kAXPressAction as CFString)
-    let method: String
-
-    if pressError != .success {
-        // Fallback: activate the window and retry
-        method = "ax_press_after_activate"
-        var pid: pid_t = 0
-        AXUIElementGetPid(element, &pid)
-        if pid > 0 {
-            let app = NSRunningApplication(processIdentifier: pid)
-            app?.activate(options: .activateAllWindows)
-        }
-        pressError = AXUIElementPerformAction(element, kAXPressAction as CFString)
-    } else {
-        method = "ax_press_background"
-    }
-
+    // AXPress must remain a background action. Activation is explicit via `activate`.
+    let pressError = AXUIElementPerformAction(element, kAXPressAction as CFString)
     guard pressError == .success else {
         throw ActionError.failed("AXPress failed with error \(pressError.rawValue)")
     }
+    let method = "ax_press_background"
 
     // Bump revision since an action was performed
     let afterRevision = try observationTracker.revision(
@@ -127,28 +112,13 @@ func axSetValue(
         throw ActionError.actionNotSupported("AXSetValue")
     }
 
-    // Try setting value without window activation
+    // AXSetValue must remain a background action. Activation is explicit via `activate`.
     let nsValue = value as NSString
-    var setValueError = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, nsValue)
-    let method: String
-
-    if setValueError != .success {
-        // Fallback: activate and retry
-        method = "ax_set_value_after_activate"
-        var pid: pid_t = 0
-        AXUIElementGetPid(element, &pid)
-        if pid > 0 {
-            let app = NSRunningApplication(processIdentifier: pid)
-            app?.activate(options: .activateAllWindows)
-        }
-        setValueError = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, nsValue)
-    } else {
-        method = "ax_set_value_background"
-    }
-
+    let setValueError = AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, nsValue)
     guard setValueError == .success else {
         throw ActionError.failed("AXSetValue failed with error \(setValueError.rawValue)")
     }
+    let method = "ax_set_value_background"
 
     let afterRevision = try observationTracker.revision(
         for: .windows,

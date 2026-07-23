@@ -4,6 +4,94 @@ import CoreGraphics
 import Foundation
 import ScreenCaptureKit
 
+
+struct UserFocusSnapshot {
+    let frontmostPID: pid_t?
+    let focusedApplicationPID: pid_t?
+    let focusedWindow: AXUIElement?
+    let focusedElement: AXUIElement?
+}
+
+func captureUserFocus() -> UserFocusSnapshot {
+    let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+    let systemWide = AXUIElementCreateSystemWide()
+    var focusedApplicationRaw: CFTypeRef?
+    var focusedApplicationPID: pid_t?
+    var focusedWindow: AXUIElement?
+    var focusedElement: AXUIElement?
+
+    if AXUIElementCopyAttributeValue(
+        systemWide,
+        kAXFocusedApplicationAttribute as CFString,
+        &focusedApplicationRaw
+    ) == .success,
+       let focusedApplicationRaw {
+        let focusedApplication = focusedApplicationRaw as! AXUIElement
+        var pid: pid_t = 0
+        focusedApplicationPID = AXUIElementGetPid(focusedApplication, &pid) == .success ? pid : nil
+
+        var focusedWindowRaw: CFTypeRef?
+        if AXUIElementCopyAttributeValue(
+            focusedApplication,
+            kAXFocusedWindowAttribute as CFString,
+            &focusedWindowRaw
+        ) == .success,
+           let focusedWindowRaw {
+            focusedWindow = (focusedWindowRaw as! AXUIElement)
+        }
+
+        var focusedElementRaw: CFTypeRef?
+        if AXUIElementCopyAttributeValue(
+            focusedApplication,
+            kAXFocusedUIElementAttribute as CFString,
+            &focusedElementRaw
+        ) == .success,
+           let focusedElementRaw {
+            focusedElement = (focusedElementRaw as! AXUIElement)
+        }
+    }
+
+    return UserFocusSnapshot(
+        frontmostPID: frontmostPID,
+        focusedApplicationPID: focusedApplicationPID,
+        focusedWindow: focusedWindow,
+        focusedElement: focusedElement
+    )
+}
+
+func restoreUserFocus(_ snapshot: UserFocusSnapshot) {
+    let current = captureUserFocus()
+    let frontmostChanged = current.frontmostPID != snapshot.frontmostPID
+    let focusedApplicationChanged = snapshot.focusedApplicationPID != nil
+        && current.focusedApplicationPID != snapshot.focusedApplicationPID
+    if frontmostChanged || focusedApplicationChanged,
+       let pid = snapshot.frontmostPID,
+       pid > 0 {
+        NSRunningApplication(processIdentifier: pid)?.activate()
+    }
+
+    if let focusedWindow = snapshot.focusedWindow {
+        _ = AXUIElementSetAttributeValue(
+            focusedWindow,
+            kAXMainAttribute as CFString,
+            kCFBooleanTrue
+        )
+    }
+    if let focusedElement = snapshot.focusedElement {
+        _ = AXUIElementSetAttributeValue(
+            focusedElement,
+            kAXFocusedAttribute as CFString,
+            kCFBooleanTrue
+        )
+    }
+}
+
+func withUserFocusGuard<T>(_ operation: () throws -> T) rethrows -> T {
+    let snapshot = captureUserFocus()
+    defer { restoreUserFocus(snapshot) }
+    return try operation()
+}
+
 struct FocusedApp: Encodable, Equatable {
     let pid: UInt32
     let bundleID: String?

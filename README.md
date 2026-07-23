@@ -80,6 +80,18 @@ rebecca capture \
 Captures one window as a PNG. Existing output files are not overwritten.
 Requires Screen Recording permission.
 
+### Targeted input
+
+Coordinate and un-targeted keyboard actions require an explicit window target. Get a `window_id` from `rebecca windows`; the host routes synthesized events to that window's owner process instead of the global event stream.
+
+```sh
+rebecca click --window-id 123 --x 100 --y 200
+rebecca key --window-id 123 --chord "cmd+a"
+rebecca type --window-id 123 --text "hello"
+```
+
+Element-based `click` and `type` continue to use Accessibility actions and require their observation revision.
+
 ### Common options
 
 ```text
