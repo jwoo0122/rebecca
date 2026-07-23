@@ -760,6 +760,69 @@
         }
       }
     },
+    "action_success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "request_id",
+        "ok",
+        "action",
+        "executed",
+        "method",
+        "before_revision",
+        "after_revision"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": 1
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ok": {
+          "const": true
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "executed": {
+          "const": true
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "before_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "after_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "verified": {
+          "type": "boolean"
+        },
+        "at_end": {
+          "type": "boolean"
+        },
+        "before_url": {
+          "type": "string"
+        },
+        "after_url": {
+          "type": "string"
+        },
+        "before_title": {
+          "type": "string"
+        },
+        "after_title": {
+          "type": "string"
+        }
+      }
+    },
     "find_success": {
       "type": "object",
       "additionalProperties": false,
@@ -824,6 +887,9 @@
     },
     {
       "$ref": "#/$defs/find_success"
+    },
+    {
+      "$ref": "#/$defs/action_success"
     },
     {
       "$ref": "#/$defs/failure"

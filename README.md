@@ -92,6 +92,73 @@ rebecca type --window-id 123 --text "hello"
 
 Element-based `click` and `type` continue to use Accessibility actions and require their observation revision.
 
+### Semantic actions
+
+Semantic actions are stateless and request-scoped. Each request includes its
+application or window target and resolves elements from the current
+accessibility tree. Rebecca never creates a session or server-side target
+handle. An action runs only when its locator matches exactly one element;
+missing, ambiguous, or truncated matches fail explicitly. Low-level commands
+such as `find` and `press` remain available.
+
+Press one uniquely located element and verify the resulting page state:
+
+```sh
+rebecca act \
+  --window-id 2939 \
+  --action press \
+  --role AXLink \
+  --label "에덴의 문" \
+  --expect-title "에덴의 문" \
+  --wait-ms 2000 \
+  --timeout 3s
+```
+
+Navigate without manually composing address-bar key events:
+
+```sh
+rebecca navigate \
+  --window-id 2939 \
+  --url https://jinwoojeo.ng/posts \
+  --expect-url https://jinwoojeo.ng/posts \
+  --wait-ms 2000 \
+  --timeout 3s
+```
+
+Wait for a URL, title, or uniquely located element:
+
+```sh
+rebecca wait-until \
+  --window-id 2939 \
+  --label "Comments" \
+  --wait-ms 3000 \
+  --timeout 4s
+```
+
+Scroll a uniquely located accessibility element into view:
+
+```sh
+rebecca scroll-to \
+  --window-id 2939 \
+  --label "Comments"
+```
+
+Scroll the target window to its accessibility-reported end:
+
+```sh
+rebecca scroll-to-end \
+  --window-id 2939
+```
+
+Use exactly one of `--app` or `--window-id` as the target. Available element
+locators are `--role`, `--label`, `--label-contains`, `--value`, `--enabled`,
+and `--focused`. `act` currently supports `--action press`; `navigate`,
+`wait-until`, `scroll-to`, and `scroll-to-end` are separate semantic operations. Window-targeted
+operations require Accessibility and Screen Recording permission. The JSON
+response distinguishes event dispatch (`executed`) from state verification
+(`verified`) and includes before/after URL and title when available.
+
+
 ### Common options
 
 ```text

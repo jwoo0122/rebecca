@@ -379,7 +379,47 @@ private struct ActionResponse: Encodable {
     let method: String?
     let beforeRevision: UInt64?
     let afterRevision: UInt64?
+    let verified: Bool?
+    let atEnd: Bool?
+    let beforeURL: String?
+    let afterURL: String?
+    let beforeTitle: String?
+    let afterTitle: String?
     let error: HostError?
+
+    init(
+        protocolVersion: Int,
+        requestID: String,
+        ok: Bool,
+        action: String?,
+        executed: Bool?,
+        method: String?,
+        beforeRevision: UInt64?,
+        afterRevision: UInt64?,
+        verified: Bool? = nil,
+        atEnd: Bool? = nil,
+        beforeURL: String? = nil,
+        afterURL: String? = nil,
+        beforeTitle: String? = nil,
+        afterTitle: String? = nil,
+        error: HostError?
+    ) {
+        self.protocolVersion = protocolVersion
+        self.requestID = requestID
+        self.ok = ok
+        self.action = action
+        self.executed = executed
+        self.method = method
+        self.beforeRevision = beforeRevision
+        self.afterRevision = afterRevision
+        self.verified = verified
+        self.atEnd = atEnd
+        self.beforeURL = beforeURL
+        self.afterURL = afterURL
+        self.beforeTitle = beforeTitle
+        self.afterTitle = afterTitle
+        self.error = error
+    }
 
     enum CodingKeys: String, CodingKey {
         case protocolVersion = "protocol_version"
@@ -387,6 +427,12 @@ private struct ActionResponse: Encodable {
         case ok, action, executed, method
         case beforeRevision = "before_revision"
         case afterRevision = "after_revision"
+        case verified
+        case atEnd = "at_end"
+        case beforeURL = "before_url"
+        case afterURL = "after_url"
+        case beforeTitle = "before_title"
+        case afterTitle = "after_title"
         case error
     }
 
@@ -400,6 +446,12 @@ private struct ActionResponse: Encodable {
         try container.encodeIfPresent(method, forKey: .method)
         try container.encodeIfPresent(beforeRevision, forKey: .beforeRevision)
         try container.encodeIfPresent(afterRevision, forKey: .afterRevision)
+        try container.encodeIfPresent(verified, forKey: .verified)
+        try container.encodeIfPresent(atEnd, forKey: .atEnd)
+        try container.encodeIfPresent(beforeURL, forKey: .beforeURL)
+        try container.encodeIfPresent(afterURL, forKey: .afterURL)
+        try container.encodeIfPresent(beforeTitle, forKey: .beforeTitle)
+        try container.encodeIfPresent(afterTitle, forKey: .afterTitle)
         try container.encodeIfPresent(error, forKey: .error)
     }
 }
@@ -709,6 +761,20 @@ private final class SocketServer {
             ), to: fd, deadline: deadline)
             return
         }
+
+        let mutatingCommands: Set<String> = [
+            "press", "act", "navigate", "scroll_to", "scroll_to_end", "set_value", "click", "type", "key", "move", "scroll", "drag", "activate",
+            "window_move", "window_resize", "window_close"
+        ]
+        if emergencyStopActive && mutatingCommands.contains(request.command) {
+            writeFailure(
+                "Emergency stop is active. Run 'resume' to allow mutating actions.",
+                code: "emergency_stop",
+                request: request, to: fd, deadline: deadline
+            )
+            return
+        }
+
         if request.command == "status" {
             handleStatus(request, to: fd, deadline: deadline)
             return
@@ -739,6 +805,26 @@ private final class SocketServer {
         }
         if request.command == "find" {
             handleFind(request, to: fd, deadline: deadline)
+            return
+        }
+        if request.command == "act" {
+            handleAct(request, to: fd, deadline: deadline)
+            return
+        }
+        if request.command == "navigate" {
+            handleNavigate(request, to: fd, deadline: deadline)
+            return
+        }
+        if request.command == "wait_until" {
+            handleWaitUntil(request, to: fd, deadline: deadline)
+            return
+        }
+        if request.command == "scroll_to" {
+            handleScrollTo(request, to: fd, deadline: deadline)
+            return
+        }
+        if request.command == "scroll_to_end" {
+            handleScrollToEnd(request, to: fd, deadline: deadline)
             return
         }
         if request.command == "press" {
@@ -822,20 +908,6 @@ private final class SocketServer {
             return
         }
 
-        // Emergency stop check for mutating commands
-        let mutatingCommands: Set<String> = [
-            "press", "set_value", "click", "type", "key", "move", "scroll", "drag", "activate",
-            "window_move", "window_resize", "window_close"
-        ]
-        if emergencyStopActive && mutatingCommands.contains(request.command) {
-            writeFailure(
-                "Emergency stop is active. Run 'resume' to allow mutating actions.",
-                code: "emergency_stop",
-                request: request, to: fd, deadline: deadline
-            )
-            return
-        }
-
         writeResponse(Response(
             protocolVersion: protocolVersion,
             requestID: request.requestID,
@@ -843,7 +915,7 @@ private final class SocketServer {
             host: nil,
             permissions: nil,
             emergencyStop: nil,
-            error: HostError(code: "unsupported", message: "status, displays, windows, capture, apps, focused, tree, find, press, set_value, click, type, key, move, scroll, drag, activate, window_move, window_resize, window_close, stop, and resume are available.")
+            error: HostError(code: "unsupported", message: "status, displays, windows, capture, apps, focused, tree, find, act, navigate, wait_until, scroll_to, press, set_value, click, type, key, move, scroll, drag, activate, window_move, window_resize, window_close, stop, and resume are available.")
         ), to: fd, deadline: deadline)
         let elapsed = Double(DispatchTime.now().uptimeNanoseconds - startTime) / 1_000_000.0
         auditLogger.log(clientPID: clientPID, clientExecutable: clientExec, command: request.command, targetApp: nil, success: false, durationMs: elapsed, errorCode: "unsupported")
@@ -891,7 +963,7 @@ private final class SocketServer {
             let displays = try queryDisplays(deadline: operationDeadline)
             let revision = try observationRevisionTracker.revision(
                 for: .displays,
-                fingerprint: observationFingerprint(displays)
+                fingerprint: displayObservationFingerprint(displays)
             )
             writeResponse(DisplaysResponse(
                 protocolVersion: protocolVersion,
@@ -1216,16 +1288,71 @@ private final class SocketServer {
         }
     }
 
+    private func resolveWindowTarget(_ windowID: UInt32, deadline: UInt64) throws -> (AXUIElement, AXUIElement?) {
+        guard AXIsProcessTrusted() else {
+            throw TreeQueryError.permissionDenied
+        }
+        let snapshot: WindowSnapshot
+        do {
+            snapshot = try queryWindowSnapshot(deadline: deadline)
+        } catch let error as WindowQueryError {
+            throw error
+        } catch {
+            throw WindowQueryError.failed(error.localizedDescription)
+        }
+        guard let target = snapshot.observations.first(where: { $0.info.windowID == windowID }),
+              let pid = target.info.ownerPID,
+              pid > 0 else {
+            throw TreeQueryError.targetNotFound
+        }
+
+        let appRef = AXUIElementCreateApplication(pid_t(pid))
+        var rawWindows: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute as CFString, &rawWindows) == .success,
+              let windows = rawWindows as? [AXUIElement] else {
+            throw TreeQueryError.targetNotFound
+        }
+
+        var matches: [AXUIElement] = []
+        for windowRef in windows {
+            let title = axString(windowRef, kAXTitleAttribute)
+            guard let frame = try? axFrameFromElement(windowRef) else { continue }
+            let titleMatches = target.info.title == nil || title == target.info.title
+            let expected = target.info.logicalFrame
+            let frameMatches = abs(expected.x - frame.x) <= 2
+                && abs(expected.y - frame.y) <= 2
+                && abs(expected.width - frame.width) <= 2
+                && abs(expected.height - frame.height) <= 2
+            if titleMatches && frameMatches {
+                matches.append(windowRef)
+            }
+        }
+        guard matches.count == 1 else {
+            if matches.isEmpty {
+                throw TreeQueryError.targetNotFound
+            }
+            throw TreeQueryError.ambiguousTarget
+        }
+        return (appRef, matches[0])
+    }
+
     private func resolveTreeTarget(_ request: Request, deadline: UInt64) throws -> (AXUIElement, AXUIElement?) {
-        let hasWindow = request.arguments["window"] != nil
+        let hasWindow = request.arguments["window"] != nil || request.arguments["window_id"] != nil
         let hasApp = request.arguments["app"] != nil
         guard hasWindow != hasApp else {
-            throw TreeQueryError.failed("Specify exactly one of window or app.")
+            throw TreeQueryError.failed("Specify exactly one of window, window_id, or app.")
+        }
+
+        if let windowID = request.arguments["window_id"]?.uint32Value, windowID > 0 {
+            return try resolveWindowTarget(windowID, deadline: deadline)
         }
 
         if let windowValue = request.arguments["window"]?.stringValue {
             guard AXIsProcessTrusted() else {
                 throw FocusQueryError.permissionDenied
+            }
+            if let windowID = UInt32(windowValue), windowID > 0 {
+                return try resolveWindowTarget(windowID, deadline: deadline)
             }
             if windowValue == "focused" {
                 let systemWide = AXUIElementCreateSystemWide()
@@ -1242,7 +1369,7 @@ private final class SocketServer {
                 }
                 return (appElement, nil)
             } else {
-                throw TreeQueryError.failed("window must be 'focused' (numeric window_id not yet supported).")
+                throw TreeQueryError.failed("window must be 'focused'; use window_id for a numeric window target.")
             }
         }
 
@@ -1293,6 +1420,8 @@ private final class SocketServer {
             return ("permission_denied", "Accessibility permission is required for tree.")
         case .targetNotFound:
             return ("target_not_found", "Target application or window was not found.")
+        case .ambiguousTarget:
+            return ("ambiguous_target", "The window target matched multiple accessibility windows.")
         case .timedOut:
             return ("timeout", "Timed out while traversing the accessibility tree.")
         case let .failed(message):
@@ -1341,6 +1470,374 @@ private final class SocketServer {
                 deadline: deadline
             )
             return nil
+        }
+    }
+
+    private func targetState(appRef: AXUIElement, windowRef: AXUIElement?) -> (url: String?, title: String?) {
+        let resolvedWindow: AXUIElement?
+        if let windowRef {
+            resolvedWindow = windowRef
+        } else {
+            var raw: CFTypeRef?
+            if AXUIElementCopyAttributeValue(appRef, kAXFocusedWindowAttribute as CFString, &raw) == .success, let raw {
+                resolvedWindow = unsafeBitCast(raw, to: AXUIElement.self)
+            } else {
+                resolvedWindow = nil
+            }
+        }
+        guard let window = resolvedWindow else { return (nil, nil) }
+        let title = axString(window, kAXTitleAttribute)
+        let url = findSmartSearchValue(window, depth: 0) ?? findSmartSearchValue(appRef, depth: 0)
+        return (url, title)
+    }
+
+    private func findSmartSearchValue(_ element: AXUIElement, depth: Int) -> String? {
+        guard depth < 12 else { return nil }
+        let role = axString(element, kAXRoleAttribute)
+        let label = axString(element, kAXDescriptionAttribute)
+        if role == "AXTextField" && label == "smart search field" {
+            var raw: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &raw) == .success {
+                return raw as? String
+            }
+        }
+        guard let children = axChildren(element) else { return nil }
+        for child in children {
+            if let value = findSmartSearchValue(child, depth: depth + 1) { return value }
+        }
+        return nil
+    }
+
+    private func bringTargetToFront(appRef: AXUIElement, windowRef: AXUIElement?) {
+        var pid: pid_t = 0
+        AXUIElementGetPid(appRef, &pid)
+        if pid > 0 { NSRunningApplication(processIdentifier: pid)?.activate(options: .activateAllWindows) }
+        if let windowRef { _ = AXUIElementPerformAction(windowRef, kAXRaiseAction as CFString) }
+    }
+
+    private func waitForConditions(
+        request: Request,
+        appRef: AXUIElement,
+        windowRef: AXUIElement?,
+        deadline: UInt64,
+        includeLocator: Bool
+    ) throws -> (state: (url: String?, title: String?), verified: Bool) {
+        let waitMs = min(request.arguments["wait_ms"]?.numberValue ?? 0, 60_000)
+        let waitDeadline = min(deadline, DispatchTime.now().uptimeNanoseconds + UInt64(max(0, waitMs) * 1_000_000))
+        let hasURL = request.arguments["expect_url"]?.stringValue != nil
+        let hasTitle = request.arguments["expect_title"]?.stringValue != nil
+        let stringLocatorKeys = ["role", "label", "label_contains", "value"]
+        let booleanLocatorKeys = ["enabled", "focused"]
+        let hasLocator = includeLocator && (stringLocatorKeys.contains(where: { request.arguments[$0]?.stringValue != nil })
+            || booleanLocatorKeys.contains(where: { request.arguments[$0]?.boolValue != nil }))
+        guard hasURL || hasTitle || hasLocator else { return (targetState(appRef: appRef, windowRef: windowRef), true) }
+
+        while true {
+            let state = targetState(appRef: appRef, windowRef: windowRef)
+            let urlMatches = request.arguments["expect_url"]?.stringValue.map { state.url == $0 } ?? true
+            let titleMatches = request.arguments["expect_title"]?.stringValue.map { state.title == $0 } ?? true
+            var locatorMatches = true
+            if hasLocator {
+                let cache = ElementCache()
+                let revision = try observationRevisionTracker.revision(
+                    for: .windows,
+                    fingerprint: observationFingerprint(TreeTargetFingerprint(appPid: axPid(appRef), windowTitle: windowRef.flatMap { axString($0, kAXTitleAttribute) }))
+                )
+                cache.beginRevision(revision)
+                let result = try findInTree(
+                    appRef: appRef,
+                    windowRef: windowRef,
+                    condition: try parseFindCondition(request),
+                    config: TreeTraversalConfig(maxDepth: 16, maxNodes: 10000, visibleOnly: true, condenseContainers: false),
+                    cache: cache,
+                    deadline: operationDeadline(before: deadline)
+                )
+                locatorMatches = !result.truncated && result.results.count == 1
+            }
+            if urlMatches && titleMatches && locatorMatches { return (state, true) }
+            if DispatchTime.now().uptimeNanoseconds >= waitDeadline { return (state, false) }
+            usleep(50_000)
+        }
+    }
+
+    private func actionResponse(
+        request: Request,
+        action: String,
+        method: String,
+        beforeRevision: UInt64,
+        afterRevision: UInt64,
+        verified: Bool,
+        atEnd: Bool? = nil,
+        before: (url: String?, title: String?),
+        after: (url: String?, title: String?),
+        to fd: Int32,
+        deadline: UInt64
+    ) {
+        writeResponse(ActionResponse(
+            protocolVersion: protocolVersion,
+            requestID: request.requestID,
+            ok: true,
+            action: action,
+            executed: true,
+            method: method,
+            beforeRevision: beforeRevision,
+            afterRevision: afterRevision,
+            verified: verified,
+            atEnd: atEnd,
+            beforeURL: before.url,
+            afterURL: after.url,
+            beforeTitle: before.title,
+            afterTitle: after.title,
+            error: nil
+        ), to: fd, deadline: deadline)
+    }
+
+    private func handleNavigate(_ request: Request, to fd: Int32, deadline: UInt64) {
+        guard let url = request.arguments["url"]?.stringValue, !url.isEmpty else {
+            writeFailure("navigate requires url.", code: "invalid_input", request: request, to: fd, deadline: deadline)
+            return
+        }
+        do {
+            let (appRef, windowRef) = try resolveTreeTarget(request, deadline: operationDeadline(before: deadline))
+            let beforeRevision = try observationRevisionTracker.revision(
+                for: .windows,
+                fingerprint: observationFingerprint(TreeTargetFingerprint(appPid: axPid(appRef), windowTitle: windowRef.flatMap { axString($0, kAXTitleAttribute) }))
+            )
+            let before = targetState(appRef: appRef, windowRef: windowRef)
+            let targetPID = axPid(appRef)
+            guard targetPID > 0 else { throw ActionError.failed("Unable to determine the target application.") }
+            bringTargetToFront(appRef: appRef, windowRef: windowRef)
+            try withUserFocusGuard {
+                try cgKey(chord: "cmd+l", targetPID: targetPID)
+                try cgType(url, targetPID: targetPID)
+                try cgKey(chord: "return", targetPID: targetPID)
+            }
+            let result = try waitForConditions(request: request, appRef: appRef, windowRef: windowRef, deadline: deadline, includeLocator: false)
+            guard result.verified else {
+                writeFailure("Navigation completed but the expected state was not observed.", code: "postcondition_timeout", request: request, to: fd, deadline: deadline)
+                return
+            }
+            let afterRevision = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "navigate", elementID: url)))
+            let after = result.state
+            actionResponse(request: request, action: "navigate", method: "cg_key_type_key", beforeRevision: beforeRevision, afterRevision: afterRevision, verified: true, before: before, after: after, to: fd, deadline: deadline)
+        } catch let error as TreeQueryError {
+            let mapped = treeError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
+        } catch let error as WindowQueryError {
+            let mapped = windowError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
+        } catch let error as ActionError {
+            let mapped = actionError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
+        } catch { writeFailure(error.localizedDescription, code: "internal_error", request: request, to: fd, deadline: deadline) }
+    }
+
+    private func handleWaitUntil(_ request: Request, to fd: Int32, deadline: UInt64) {
+        let hasCondition = request.arguments["expect_url"]?.stringValue != nil
+            || request.arguments["expect_title"]?.stringValue != nil
+            || request.arguments["role"]?.stringValue != nil
+            || request.arguments["label"]?.stringValue != nil
+            || request.arguments["label_contains"]?.stringValue != nil
+            || request.arguments["value"]?.stringValue != nil
+            || request.arguments["enabled"]?.boolValue != nil
+            || request.arguments["focused"]?.boolValue != nil
+        guard hasCondition else {
+            writeFailure("wait_until requires a URL, title, or locator condition.", code: "invalid_input", request: request, to: fd, deadline: deadline)
+            return
+        }
+        do {
+            let (appRef, windowRef) = try resolveTreeTarget(request, deadline: operationDeadline(before: deadline))
+            let beforeRevision = try observationRevisionTracker.revision(
+                for: .windows,
+                fingerprint: observationFingerprint(TreeTargetFingerprint(appPid: axPid(appRef), windowTitle: windowRef.flatMap { axString($0, kAXTitleAttribute) }))
+            )
+            let before = targetState(appRef: appRef, windowRef: windowRef)
+            let result = try waitForConditions(request: request, appRef: appRef, windowRef: windowRef, deadline: deadline, includeLocator: true)
+            guard result.verified else {
+                writeFailure("Expected state was not observed before timeout.", code: "postcondition_timeout", request: request, to: fd, deadline: deadline)
+                return
+            }
+            let afterRevision = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "wait_until", elementID: "observation")))
+            actionResponse(request: request, action: "wait_until", method: "ax_observation", beforeRevision: beforeRevision, afterRevision: afterRevision, verified: true, before: before, after: result.state, to: fd, deadline: deadline)
+        } catch let error as TreeQueryError {
+            let mapped = treeError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
+        } catch let error as WindowQueryError {
+            let mapped = windowError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
+        } catch { writeFailure(error.localizedDescription, code: "internal_error", request: request, to: fd, deadline: deadline) }
+    }
+
+    private func findVerticalScrollBar(_ element: AXUIElement, depth: Int) -> AXUIElement? {
+        guard depth < 16 else { return nil }
+        var raw: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXVerticalScrollBarAttribute as CFString, &raw) == .success, let raw {
+            return unsafeBitCast(raw, to: AXUIElement.self)
+        }
+        guard let children = axChildren(element) else { return nil }
+        for child in children {
+            if let scrollBar = findVerticalScrollBar(child, depth: depth + 1) { return scrollBar }
+        }
+        return nil
+    }
+
+    private func handleScrollToEnd(_ request: Request, to fd: Int32, deadline: UInt64) {
+        do {
+            let (appRef, windowRef) = try resolveTreeTarget(request, deadline: operationDeadline(before: deadline))
+            guard let scrollRoot = windowRef else { throw ActionError.failed("A window target is required for scroll_to_end.") }
+            guard let scrollBar = findVerticalScrollBar(scrollRoot, depth: 0) else {
+                throw ActionError.actionNotSupported("AXVerticalScrollBar")
+            }
+            var maxRaw: CFTypeRef?
+            let maxValue: Double
+            if AXUIElementCopyAttributeValue(scrollBar, kAXMaxValueAttribute as CFString, &maxRaw) == .success,
+               let number = maxRaw as? NSNumber {
+                maxValue = number.doubleValue
+            } else {
+                maxValue = 1.0
+            }
+            guard AXUIElementSetAttributeValue(scrollBar, kAXValueAttribute as CFString, NSNumber(value: maxValue)) == .success else {
+                throw ActionError.failed("Unable to set the vertical scroll position.")
+            }
+            let beforeRevision = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(TreeTargetFingerprint(appPid: axPid(appRef), windowTitle: windowRef.flatMap { axString($0, kAXTitleAttribute) })))
+            let afterRevision = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "scroll_to_end", elementID: "vertical_scroll_bar")))
+            let state = targetState(appRef: appRef, windowRef: windowRef)
+            actionResponse(request: request, action: "scroll_to_end", method: "ax_set_vertical_scroll_bar", beforeRevision: beforeRevision, afterRevision: afterRevision, verified: true, atEnd: true, before: state, after: state, to: fd, deadline: deadline)
+        } catch let error as TreeQueryError { let mapped = treeError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline) }
+        catch let error as WindowQueryError { let mapped = windowError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline) }
+        catch let error as ActionError { let mapped = actionError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline) }
+        catch { writeFailure(error.localizedDescription, code: "internal_error", request: request, to: fd, deadline: deadline) }
+    }
+
+    private func handleScrollTo(_ request: Request, to fd: Int32, deadline: UInt64) {
+        do {
+            let (appRef, windowRef) = try resolveTreeTarget(request, deadline: operationDeadline(before: deadline))
+            let cache = ElementCache()
+            let revision = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(TreeTargetFingerprint(appPid: axPid(appRef), windowTitle: windowRef.flatMap { axString($0, kAXTitleAttribute) })))
+            cache.beginRevision(revision)
+            let result = try findInTree(appRef: appRef, windowRef: windowRef, condition: try parseFindCondition(request), config: TreeTraversalConfig(maxDepth: 16, maxNodes: 10000, visibleOnly: false, condenseContainers: false), cache: cache, deadline: operationDeadline(before: deadline))
+            guard !result.truncated else { writeFailure("Locator search was truncated.", code: "search_truncated", request: request, to: fd, deadline: deadline); return }
+            guard result.results.count == 1, let element = cache.resolve(result.results[0].id, revision: revision) else {
+                let code = result.results.isEmpty ? "target_not_found" : "ambiguous_element"
+                writeFailure("Scroll locator did not resolve exactly one element.", code: code, request: request, to: fd, deadline: deadline); return
+            }
+            guard axActionNames(element).contains("AXScrollToVisible") else { throw ActionError.actionNotSupported("AXScrollToVisible") }
+            guard AXUIElementPerformAction(element, "AXScrollToVisible" as CFString) == .success else { throw ActionError.failed("AXScrollToVisible failed.") }
+            let afterRevision = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "scroll_to", elementID: result.results[0].id)))
+            let state = targetState(appRef: appRef, windowRef: windowRef)
+            actionResponse(request: request, action: "scroll_to", method: "ax_scroll_to_visible", beforeRevision: revision, afterRevision: afterRevision, verified: true, before: state, after: state, to: fd, deadline: deadline)
+        } catch let error as TreeQueryError { let mapped = treeError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline) }
+        catch let error as WindowQueryError { let mapped = windowError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline) }
+        catch let error as ActionError { let mapped = actionError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline) }
+        catch { writeFailure(error.localizedDescription, code: "internal_error", request: request, to: fd, deadline: deadline) }
+    }
+
+    private func handleAct(_ request: Request, to fd: Int32, deadline: UInt64) {
+        let hasApp = request.arguments["app"]?.stringValue != nil
+        let hasWindowID = request.arguments["window_id"]?.uint32Value != nil
+        guard hasApp != hasWindowID else {
+            writeFailure("act requires exactly one of app or window_id.", code: "invalid_input", request: request, to: fd, deadline: deadline)
+            return
+        }
+        guard request.arguments["action"]?.stringValue == "press" else {
+            writeFailure("act currently supports action=press.", code: "invalid_input", request: request, to: fd, deadline: deadline)
+            return
+        }
+        let stringLocatorKeys = ["role", "label", "label_contains", "value"]
+        let booleanLocatorKeys = ["enabled", "focused"]
+        let hasValidLocator = stringLocatorKeys.contains(where: { request.arguments[$0]?.stringValue != nil })
+            || booleanLocatorKeys.contains(where: { request.arguments[$0]?.boolValue != nil })
+        guard hasValidLocator else {
+            writeFailure("act requires at least one non-null, correctly typed element locator.", code: "invalid_input", request: request, to: fd, deadline: deadline)
+            return
+        }
+
+        let operationDeadline = operationDeadline(before: deadline)
+        do {
+            let (appRef, windowRef) = try resolveTreeTarget(request, deadline: operationDeadline)
+            let before = targetState(appRef: appRef, windowRef: windowRef)
+            let condition = try parseFindCondition(request)
+            let config = TreeTraversalConfig(maxDepth: 16, maxNodes: 10000, visibleOnly: false, condenseContainers: false)
+            let revision = try observationRevisionTracker.revision(
+                for: .windows,
+                fingerprint: observationFingerprint(TreeTargetFingerprint(
+                    appPid: axPid(appRef),
+                    windowTitle: windowRef.flatMap { axString($0, kAXTitleAttribute) }
+                ))
+            )
+            let semanticCache = ElementCache()
+            semanticCache.beginRevision(revision)
+            let result = try findInTree(
+                appRef: appRef,
+                windowRef: windowRef,
+                condition: condition,
+                config: config,
+                cache: semanticCache,
+                deadline: operationDeadline
+            )
+            guard !result.truncated else {
+                writeFailure("Locator search was truncated; refusing to choose an element.", code: "search_truncated", request: request, to: fd, deadline: deadline)
+                return
+            }
+            guard result.results.count == 1 else {
+                if result.results.isEmpty {
+                    writeFailure("No element matched the locator.", code: "target_not_found", request: request, to: fd, deadline: deadline)
+                } else {
+                    writeFailure("Locator matched \(result.results.count) elements; refusing to choose one.", code: "ambiguous_element", request: request, to: fd, deadline: deadline)
+                }
+                return
+            }
+            let elementID = result.results[0].id
+            guard let element = semanticCache.resolve(elementID, revision: revision) else {
+                writeFailure("Resolved element is no longer available.", code: "stale_observation", request: request, to: fd, deadline: deadline)
+                return
+            }
+            let actionResult: ActionResult
+            do {
+                actionResult = try axPressElement(
+                    element,
+                    elementID: elementID,
+                    providedRevision: revision,
+                    cache: semanticCache,
+                    observationTracker: observationRevisionTracker,
+                    deadline: deadline
+                )
+            } catch ActionError.actionNotSupported {
+                guard let frame = try? axFrameFromElement(element) else {
+                    throw ActionError.failed("Element does not expose a clickable frame.")
+                }
+                var pid: pid_t = 0
+                AXUIElementGetPid(element, &pid)
+                guard pid > 0 else {
+                    throw ActionError.failed("Unable to determine the target application.")
+                }
+                NSRunningApplication(processIdentifier: pid)?.activate(options: .activateAllWindows)
+                try withUserFocusGuard {
+                    try cgClick(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2, targetPID: pid)
+                }
+                let afterRevision = try observationRevisionTracker.revision(
+                    for: .windows,
+                    fingerprint: observationFingerprint(ActionFingerprint(action: "act_click", elementID: elementID))
+                )
+                actionResult = ActionResult(
+                    executed: true,
+                    method: "cg_click_after_activate",
+                    beforeRevision: revision,
+                    afterRevision: afterRevision
+                )
+            }
+            let afterResult = try waitForConditions(request: request, appRef: appRef, windowRef: windowRef, deadline: deadline, includeLocator: false)
+            guard afterResult.verified else {
+                writeFailure("Action completed but the expected state was not observed.", code: "postcondition_timeout", request: request, to: fd, deadline: deadline)
+                return
+            }
+            actionResponse(request: request, action: "act", method: actionResult.method, beforeRevision: actionResult.beforeRevision, afterRevision: actionResult.afterRevision, verified: true, before: before, after: afterResult.state, to: fd, deadline: deadline)
+        } catch let error as TreeQueryError {
+            let mapped = treeError(error)
+            writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
+        } catch let error as WindowQueryError {
+            let mapped = windowError(error)
+            writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
+        } catch let error as ActionError {
+            let mapped = actionError(error)
+            writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
+        } catch {
+            writeFailure(error.localizedDescription, code: "internal_error", request: request, to: fd, deadline: deadline)
         }
     }
 
