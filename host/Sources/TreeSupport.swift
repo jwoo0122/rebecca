@@ -68,6 +68,7 @@ final class ElementCache {
 enum TreeQueryError: Error {
     case permissionDenied
     case targetNotFound
+    case ambiguousTarget
     case timedOut
     case failed(String)
 }

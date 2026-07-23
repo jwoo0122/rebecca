@@ -251,6 +251,36 @@ pub struct FindResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct ActionResponse {
+    pub protocol_version: u32,
+    pub request_id: String,
+    pub ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before_revision: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after_revision: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verified: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before_title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after_title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<ProtocolError>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HostStatus {
     pub running: bool,
     pub version: String,
@@ -500,6 +530,63 @@ mod tests {
         );
         assert_eq!(
             serde_json::from_value::<CaptureResponse>(value).unwrap(),
+            response
+        );
+    }
+
+    #[test]
+    fn action_response_round_trip() {
+        let response = ActionResponse {
+            protocol_version: PROTOCOL_VERSION,
+            request_id: "act-request".into(),
+            ok: true,
+            action: Some("act".into()),
+            executed: Some(true),
+            method: Some("ax_press_background".into()),
+            before_revision: Some(10),
+            after_revision: Some(11),
+            verified: Some(true),
+            before_url: Some("https://example.test/old".into()),
+            after_url: Some("https://example.test/new".into()),
+            before_title: Some("Old".into()),
+            after_title: Some("New".into()),
+            error: None,
+        };
+        let mut bytes = Vec::new();
+        write_message(&mut bytes, &response).unwrap();
+        assert_eq!(
+            read_message::<_, ActionResponse>(&mut bytes.as_slice()).unwrap(),
+            response
+        );
+    }
+
+    #[test]
+    fn action_failure_has_only_common_fields_and_error() {
+        let response = ActionResponse {
+            protocol_version: PROTOCOL_VERSION,
+            request_id: "act-request".into(),
+            ok: false,
+            action: None,
+            executed: None,
+            method: None,
+            before_revision: None,
+            after_revision: None,
+            verified: None,
+            before_url: None,
+            after_url: None,
+            before_title: None,
+            after_title: None,
+            error: Some(ProtocolError {
+                code: "ambiguous_element".into(),
+                message: "Locator matched multiple elements.".into(),
+                details: None,
+            }),
+        };
+        let value = serde_json::to_value(&response).unwrap();
+        assert_eq!(value["action"], serde_json::Value::Null);
+        assert_eq!(value["error"]["code"], "ambiguous_element");
+        assert_eq!(
+            serde_json::from_value::<ActionResponse>(value).unwrap(),
             response
         );
     }

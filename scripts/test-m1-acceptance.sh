@@ -32,3 +32,47 @@ cargo run -q -p rebecca-cli -- focused --json --no-start > /tmp/cu-m1/focused.js
 cargo run -q -p rebecca-cli -- windows --app dev.jwoo0122.rebecca-fixture --json --no-start > /tmp/cu-m1/windows.json
 
 python3 /tmp/cu-m1/verify.py
+
+fixture_window_id="$(python3 - <<'PY'
+import json
+with open("/tmp/cu-m1/windows.json") as stream:
+    data = json.load(stream)
+print(data["windows"][0]["window_id"])
+PY
+)"
+
+cargo run -q -p rebecca-cli -- act \
+  --window-id "$fixture_window_id" \
+  --action press \
+  --role AXButton \
+  --label "Test Button" \
+  --json \
+  --no-start > /tmp/cu-m1/act.json
+python3 - <<'PY'
+import json
+with open("/tmp/cu-m1/act.json") as stream:
+    response = json.load(stream)
+assert response["ok"] is True
+assert response["action"] == "act"
+assert response["executed"] is True
+assert response["verified"] is True
+PY
+
+set +e
+cargo run -q -p rebecca-cli -- act \
+  --window-id "$fixture_window_id" \
+  --action press \
+  --role AXButton \
+  --label-contains "Button" \
+  --json \
+  --no-start > /tmp/cu-m1/ambiguous-act.json
+ambiguous_status=$?
+set -e
+[[ "$ambiguous_status" -eq 14 ]]
+python3 - <<'PY'
+import json
+with open("/tmp/cu-m1/ambiguous-act.json") as stream:
+    response = json.load(stream)
+assert response["ok"] is False
+assert response["error"]["code"] == "ambiguous_element"
+PY

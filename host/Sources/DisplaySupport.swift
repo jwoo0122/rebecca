@@ -50,7 +50,7 @@ func queryDisplays(deadline: UInt64 = UInt64.max) throws -> [DisplayInfo] {
             throw DisplayQueryError.failed(message)
         }
     }
-    return try content.displays.map(displayInfo)
+    return try content.displays.map(displayInfo).sorted { $0.displayID < $1.displayID }
 }
 
 private func displayInfo(for display: SCDisplay) throws -> DisplayInfo {

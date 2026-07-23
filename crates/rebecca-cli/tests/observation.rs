@@ -321,3 +321,177 @@ fn capture_target_not_found_preserves_exit_mapping() {
     let value: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(value["error"]["code"], "target_not_found");
 }
+
+#[test]
+fn act_sends_request_scoped_locator_without_a_session_handle() {
+    let socket = socket_path("act");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let worker = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let request: Request = read_message(&mut stream).unwrap();
+        assert_eq!(request.command, "act");
+        assert_eq!(
+            request.arguments,
+            json!({
+                "action": "press",
+                "window_id": 2939,
+                "role": "AXLink",
+                "label": "에덴의 문"
+            })
+        );
+        write_message(
+            &mut stream,
+            &json!({
+                "protocol_version": PROTOCOL_VERSION,
+                "request_id": request.request_id,
+                "ok": true,
+                "action": "act",
+                "executed": true,
+                "method": "ax_press_background",
+                "before_revision": 10,
+                "after_revision": 11
+            }),
+        )
+        .unwrap();
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rebecca"))
+        .args([
+            "act",
+            "--window-id",
+            "2939",
+            "--action",
+            "press",
+            "--role",
+            "AXLink",
+            "--label",
+            "에덴의 문",
+            "--json",
+            "--no-start",
+            "--socket",
+        ])
+        .arg(&socket)
+        .output()
+        .unwrap();
+    worker.join().unwrap();
+    std::fs::remove_file(&socket).unwrap();
+
+    assert!(output.status.success());
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["ok"], true);
+    assert_eq!(value["action"], "act");
+    assert_eq!(value["after_revision"], 11);
+}
+
+#[test]
+fn act_rejects_ambiguous_target_arguments_before_connecting() {
+    let output = Command::new(env!("CARGO_BIN_EXE_rebecca"))
+        .args([
+            "act",
+            "--app",
+            "com.apple.Safari",
+            "--window-id",
+            "2939",
+            "--action",
+            "press",
+            "--label",
+            "target",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(2));
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["ok"], false);
+    assert_eq!(value["error"]["code"], "invalid_input");
+}
+
+#[test]
+fn navigate_sends_expectations_as_one_stateless_request() {
+    let socket = socket_path("navigate");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let worker = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let request: Request = read_message(&mut stream).unwrap();
+        assert_eq!(request.command, "navigate");
+        assert_eq!(
+            request.arguments,
+            json!({
+                "window_id": 2939,
+                "url": "https://example.test/posts",
+                "expect_url": "https://example.test/posts",
+                "expect_title": "Example",
+                "wait_ms": 1500
+            })
+        );
+        write_message(
+            &mut stream,
+            &json!({
+                "protocol_version": PROTOCOL_VERSION,
+                "request_id": request.request_id,
+                "ok": true,
+                "action": "navigate",
+                "executed": true,
+                "method": "cg_key_type_key",
+                "before_revision": 10,
+                "after_revision": 11,
+                "verified": true,
+                "before_url": "https://example.test/old",
+                "after_url": "https://example.test/posts",
+                "before_title": "Old",
+                "after_title": "Example"
+            }),
+        )
+        .unwrap();
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rebecca"))
+        .args([
+            "navigate",
+            "--window-id",
+            "2939",
+            "--url",
+            "https://example.test/posts",
+            "--expect-url",
+            "https://example.test/posts",
+            "--expect-title",
+            "Example",
+            "--wait-ms",
+            "1500",
+            "--json",
+            "--no-start",
+            "--socket",
+        ])
+        .arg(&socket)
+        .output()
+        .unwrap();
+    worker.join().unwrap();
+    std::fs::remove_file(&socket).unwrap();
+
+    assert!(output.status.success());
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["action"], "navigate");
+    assert_eq!(value["verified"], true);
+    assert_eq!(value["after_title"], "Example");
+}
+
+#[test]
+fn wait_until_requires_a_condition_before_connecting() {
+    let output = Command::new(env!("CARGO_BIN_EXE_rebecca"))
+        .args([
+            "wait-until",
+            "--window-id",
+            "2939",
+            "--wait-ms",
+            "100",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(2));
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["ok"], false);
+    assert_eq!(value["error"]["code"], "invalid_input");
+}

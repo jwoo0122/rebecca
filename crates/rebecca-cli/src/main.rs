@@ -110,6 +110,84 @@ enum Commands {
         #[arg(long)]
         revision: u64,
     },
+    /// Resolve exactly one element in a target window and perform a semantic action.
+    Act {
+        #[arg(long)]
+        app: Option<String>,
+        #[arg(long = "window-id")]
+        window_id: Option<u32>,
+        #[arg(long)]
+        action: String,
+        #[arg(long)]
+        role: Option<String>,
+        #[arg(long)]
+        label: Option<String>,
+        #[arg(long = "label-contains")]
+        label_contains: Option<String>,
+        #[arg(long)]
+        value: Option<String>,
+        #[arg(long)]
+        enabled: Option<bool>,
+        #[arg(long)]
+        focused: Option<bool>,
+        #[arg(long)]
+        expect_url: Option<String>,
+        #[arg(long)]
+        expect_title: Option<String>,
+        #[arg(long)]
+        wait_ms: Option<u64>,
+    },
+    /// Navigate a targeted application or window and optionally verify its URL/title.
+    Navigate {
+        #[arg(long)]
+        app: Option<String>,
+        #[arg(long = "window-id")]
+        window_id: Option<u32>,
+        #[arg(long)]
+        url: String,
+        #[arg(long)]
+        expect_url: Option<String>,
+        #[arg(long)]
+        expect_title: Option<String>,
+        #[arg(long)]
+        wait_ms: Option<u64>,
+    },
+    /// Wait for a URL, title, or uniquely located element in a target.
+    WaitUntil {
+        #[arg(long)]
+        app: Option<String>,
+        #[arg(long = "window-id")]
+        window_id: Option<u32>,
+        #[arg(long)]
+        expect_url: Option<String>,
+        #[arg(long)]
+        expect_title: Option<String>,
+        #[arg(long)]
+        role: Option<String>,
+        #[arg(long)]
+        label: Option<String>,
+        #[arg(long = "label-contains")]
+        label_contains: Option<String>,
+        #[arg(long)]
+        value: Option<String>,
+        #[arg(long)]
+        wait_ms: u64,
+    },
+    /// Scroll a uniquely located element into view in a target window.
+    ScrollTo {
+        #[arg(long)]
+        app: Option<String>,
+        #[arg(long = "window-id")]
+        window_id: Option<u32>,
+        #[arg(long)]
+        role: Option<String>,
+        #[arg(long)]
+        label: Option<String>,
+        #[arg(long = "label-contains")]
+        label_contains: Option<String>,
+        #[arg(long)]
+        value: Option<String>,
+    },
     /// Set the value of an AX text field.
     SetValue {
         #[arg(long)]
@@ -294,6 +372,109 @@ fn main() {
             },
         ),
         Commands::Press { element, revision } => press(&cli, element, *revision),
+        Commands::Act {
+            app,
+            window_id,
+            action,
+            role,
+            label,
+            label_contains,
+            value,
+            enabled,
+            focused,
+            expect_url,
+            expect_title,
+            wait_ms,
+        } => act(
+            &cli,
+            ActOptions {
+                app: app.as_deref(),
+                window_id: *window_id,
+                action,
+                locator: FindOptions {
+                    role: role.as_deref(),
+                    label: label.as_deref(),
+                    label_contains: label_contains.as_deref(),
+                    value: value.as_deref(),
+                    enabled: *enabled,
+                    focused: *focused,
+                    window: None,
+                    app: None,
+                    depth: 16,
+                },
+                expect_url: expect_url.as_deref(),
+                expect_title: expect_title.as_deref(),
+                wait_ms: *wait_ms,
+            },
+        ),
+        Commands::Navigate {
+            app,
+            window_id,
+            url,
+            expect_url,
+            expect_title,
+            wait_ms,
+        } => navigate(
+            &cli,
+            app.as_deref(),
+            *window_id,
+            url,
+            expect_url.as_deref(),
+            expect_title.as_deref(),
+            *wait_ms,
+        ),
+        Commands::WaitUntil {
+            app,
+            window_id,
+            expect_url,
+            expect_title,
+            role,
+            label,
+            label_contains,
+            value,
+            wait_ms,
+        } => wait_until(
+            &cli,
+            app.as_deref(),
+            *window_id,
+            expect_url.as_deref(),
+            expect_title.as_deref(),
+            FindOptions {
+                role: role.as_deref(),
+                label: label.as_deref(),
+                label_contains: label_contains.as_deref(),
+                value: value.as_deref(),
+                enabled: None,
+                focused: None,
+                window: None,
+                app: None,
+                depth: 16,
+            },
+            *wait_ms,
+        ),
+        Commands::ScrollTo {
+            app,
+            window_id,
+            role,
+            label,
+            label_contains,
+            value,
+        } => scroll_to(
+            &cli,
+            app.as_deref(),
+            *window_id,
+            FindOptions {
+                role: role.as_deref(),
+                label: label.as_deref(),
+                label_contains: label_contains.as_deref(),
+                value: value.as_deref(),
+                enabled: None,
+                focused: None,
+                window: None,
+                app: None,
+                depth: 16,
+            },
+        ),
         Commands::SetValue {
             element,
             revision,
@@ -1744,6 +1925,257 @@ fn find(cli: &Cli, options: FindOptions<'_>) -> i32 {
     0
 }
 
+struct ActOptions<'a> {
+    app: Option<&'a str>,
+    window_id: Option<u32>,
+    action: &'a str,
+    locator: FindOptions<'a>,
+    expect_url: Option<&'a str>,
+    expect_title: Option<&'a str>,
+    wait_ms: Option<u64>,
+}
+
+fn act(cli: &Cli, options: ActOptions<'_>) -> i32 {
+    let ActOptions {
+        app,
+        window_id,
+        action,
+        locator: options,
+        expect_url,
+        expect_title,
+        wait_ms,
+    } = options;
+    if app.is_some() == window_id.is_some() {
+        emit_error(
+            cli.json,
+            "invalid_input",
+            "act requires exactly one of --app or --window-id.",
+            None,
+        );
+        return 2;
+    }
+    if action != "press" {
+        emit_error(
+            cli.json,
+            "invalid_input",
+            "act currently supports only --action press.",
+            None,
+        );
+        return 2;
+    }
+    if options.role.is_none()
+        && options.label.is_none()
+        && options.label_contains.is_none()
+        && options.value.is_none()
+        && options.enabled.is_none()
+        && options.focused.is_none()
+    {
+        emit_error(
+            cli.json,
+            "invalid_input",
+            "act requires at least one element locator.",
+            None,
+        );
+        return 2;
+    }
+
+    let mut arguments = json!({
+        "action": action,
+        "role": options.role,
+        "label": options.label,
+        "label_contains": options.label_contains,
+        "value": options.value,
+        "enabled": options.enabled,
+        "focused": options.focused,
+    });
+    if let Some(app) = app {
+        arguments["app"] = json!(app);
+    }
+    if let Some(window_id) = window_id {
+        if window_id == 0 {
+            emit_error(
+                cli.json,
+                "invalid_input",
+                "window-id must be greater than zero.",
+                None,
+            );
+            return 2;
+        }
+        arguments["window_id"] = json!(window_id);
+    }
+    if let Some(expect_url) = expect_url {
+        arguments["expect_url"] = json!(expect_url);
+    }
+    if let Some(expect_title) = expect_title {
+        arguments["expect_title"] = json!(expect_title);
+    }
+    if let Some(wait_ms) = wait_ms {
+        arguments["wait_ms"] = json!(wait_ms);
+    }
+    // Null locator fields are omitted so the host receives the same shape as find.
+    if let Some(object) = arguments.as_object_mut() {
+        object.retain(|key, value| {
+            key == "action" || key == "app" || key == "window_id" || !value.is_null()
+        });
+    }
+
+    let (request_id, response_value) = match request_value(cli, "act", arguments) {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
+    handle_action_response(cli, &request_id, response_value, "act")
+}
+
+fn semantic_target(app: Option<&str>, window_id: Option<u32>) -> Result<Value, &'static str> {
+    if app.is_some() == window_id.is_some() {
+        return Err("semantic command requires exactly one of --app or --window-id.");
+    }
+    let mut arguments = json!({});
+    if let Some(app) = app {
+        if app.is_empty() {
+            return Err("app must not be empty.");
+        }
+        arguments["app"] = json!(app);
+    }
+    if let Some(window_id) = window_id {
+        if window_id == 0 {
+            return Err("window-id must be greater than zero.");
+        }
+        arguments["window_id"] = json!(window_id);
+    }
+    Ok(arguments)
+}
+
+fn add_locator(arguments: &mut Value, options: FindOptions<'_>) -> bool {
+    let mut found = false;
+    if let Some(value) = options.role {
+        arguments["role"] = json!(value);
+        found = true;
+    }
+    if let Some(value) = options.label {
+        arguments["label"] = json!(value);
+        found = true;
+    }
+    if let Some(value) = options.label_contains {
+        arguments["label_contains"] = json!(value);
+        found = true;
+    }
+    if let Some(value) = options.value {
+        arguments["value"] = json!(value);
+        found = true;
+    }
+    if let Some(value) = options.enabled {
+        arguments["enabled"] = json!(value);
+        found = true;
+    }
+    if let Some(value) = options.focused {
+        arguments["focused"] = json!(value);
+        found = true;
+    }
+    found
+}
+
+fn semantic_request(cli: &Cli, command: &str, arguments: Value, action: &str) -> i32 {
+    let (request_id, response_value) = match request_value(cli, command, arguments) {
+        Ok(value) => value,
+        Err(code) => return code,
+    };
+    handle_action_response(cli, &request_id, response_value, action)
+}
+
+fn navigate(
+    cli: &Cli,
+    app: Option<&str>,
+    window_id: Option<u32>,
+    url: &str,
+    expect_url: Option<&str>,
+    expect_title: Option<&str>,
+    wait_ms: Option<u64>,
+) -> i32 {
+    if url.is_empty() {
+        emit_error(cli.json, "invalid_input", "url must not be empty.", None);
+        return 2;
+    }
+    let mut arguments = match semantic_target(app, window_id) {
+        Ok(value) => value,
+        Err(message) => {
+            emit_error(cli.json, "invalid_input", message, None);
+            return 2;
+        }
+    };
+    arguments["url"] = json!(url);
+    if let Some(value) = expect_url {
+        arguments["expect_url"] = json!(value);
+    }
+    if let Some(value) = expect_title {
+        arguments["expect_title"] = json!(value);
+    }
+    if let Some(value) = wait_ms {
+        arguments["wait_ms"] = json!(value);
+    }
+    semantic_request(cli, "navigate", arguments, "navigate")
+}
+
+fn wait_until(
+    cli: &Cli,
+    app: Option<&str>,
+    window_id: Option<u32>,
+    expect_url: Option<&str>,
+    expect_title: Option<&str>,
+    options: FindOptions<'_>,
+    wait_ms: u64,
+) -> i32 {
+    let mut arguments = match semantic_target(app, window_id) {
+        Ok(value) => value,
+        Err(message) => {
+            emit_error(cli.json, "invalid_input", message, None);
+            return 2;
+        }
+    };
+    if let Some(value) = expect_url {
+        arguments["expect_url"] = json!(value);
+    }
+    if let Some(value) = expect_title {
+        arguments["expect_title"] = json!(value);
+    }
+    if !add_locator(&mut arguments, options) && expect_url.is_none() && expect_title.is_none() {
+        emit_error(
+            cli.json,
+            "invalid_input",
+            "wait-until requires a URL, title, or locator condition.",
+            None,
+        );
+        return 2;
+    }
+    arguments["wait_ms"] = json!(wait_ms);
+    semantic_request(cli, "wait_until", arguments, "wait_until")
+}
+
+fn scroll_to(
+    cli: &Cli,
+    app: Option<&str>,
+    window_id: Option<u32>,
+    options: FindOptions<'_>,
+) -> i32 {
+    let mut arguments = match semantic_target(app, window_id) {
+        Ok(value) => value,
+        Err(message) => {
+            emit_error(cli.json, "invalid_input", message, None);
+            return 2;
+        }
+    };
+    if !add_locator(&mut arguments, options) {
+        emit_error(
+            cli.json,
+            "invalid_input",
+            "scroll-to requires an element locator.",
+            None,
+        );
+        return 2;
+    }
+    semantic_request(cli, "scroll_to", arguments, "scroll_to")
+}
+
 fn press(cli: &Cli, element: &str, revision: u64) -> i32 {
     if element.is_empty() {
         emit_error(
@@ -2575,6 +3007,10 @@ fn exit_code_for(code: &str) -> i32 {
         "permission_denied" => 5,
         "target_not_found" => 6,
         "stale_observation" => 7,
+        "ambiguous_target" => 13,
+        "ambiguous_element" => 14,
+        "search_truncated" => 15,
+        "postcondition_timeout" => 16,
         "timeout" => 8,
         "emergency_stop" => 9,
         "unsupported" => 10,
