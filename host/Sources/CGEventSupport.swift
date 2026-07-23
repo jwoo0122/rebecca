@@ -1,9 +1,15 @@
 import CoreGraphics
 import Foundation
 
+private extension CGEvent {
+    func post(to targetPID: pid_t) {
+        self.postToPid(targetPID)
+    }
+}
+
 // MARK: - CGEvent click
 
-func cgClick(x: Double, y: Double, button: CGMouseButton = .left, clickCount: Int = 1) throws {
+func cgClick(x: Double, y: Double, button: CGMouseButton = .left, clickCount: Int = 1, targetPID: pid_t) throws {
     let point = CGPoint(x: x, y: y)
     let source = CGEventSource(stateID: .hidSystemState)
 
@@ -13,14 +19,14 @@ func cgClick(x: Double, y: Double, button: CGMouseButton = .left, clickCount: In
             throw ActionError.failed("Failed to create mouse down event.")
         }
         down.setIntegerValueField(.mouseEventClickState, value: Int64(clickCount - attempt))
-        down.post(tap: .cghidEventTap)
+        down.post(to: targetPID)
 
         let mouseUp = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: button)
         guard let up = mouseUp else {
             throw ActionError.failed("Failed to create mouse up event.")
         }
         up.setIntegerValueField(.mouseEventClickState, value: Int64(clickCount - attempt))
-        up.post(tap: .cghidEventTap)
+        up.post(to: targetPID)
 
         if attempt < clickCount - 1 {
             usleep(50000) // 50ms between clicks
@@ -30,33 +36,33 @@ func cgClick(x: Double, y: Double, button: CGMouseButton = .left, clickCount: In
 
 // MARK: - CGEvent move
 
-func cgMove(x: Double, y: Double) throws {
+func cgMove(x: Double, y: Double, targetPID: pid_t) throws {
     let point = CGPoint(x: x, y: y)
     let source = CGEventSource(stateID: .hidSystemState)
     let move = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)
     guard let event = move else {
         throw ActionError.failed("Failed to create mouse move event.")
     }
-    event.post(tap: .cghidEventTap)
+    event.post(to: targetPID)
 }
 
 // MARK: - CGEvent scroll
 
-func cgScroll(dx: Double, dy: Double) throws {
+func cgScroll(dx: Double, dy: Double, targetPID: pid_t) throws {
     let source = CGEventSource(stateID: .hidSystemState)
     if dy != 0 {
         let scroll = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 1, wheel1: Int32(dy), wheel2: 0, wheel3: 0)
         guard let event = scroll else {
             throw ActionError.failed("Failed to create vertical scroll event.")
         }
-        event.post(tap: .cghidEventTap)
+        event.post(to: targetPID)
     }
     if dx != 0 {
         let scroll = CGEvent(scrollWheelEvent2Source: source, units: .pixel, wheelCount: 2, wheel1: 0, wheel2: Int32(dx), wheel3: 0)
         guard let event = scroll else {
             throw ActionError.failed("Failed to create horizontal scroll event.")
         }
-        event.post(tap: .cghidEventTap)
+        event.post(to: targetPID)
     }
 }
 
@@ -84,7 +90,7 @@ private let keyMap: [String: CGKeyCode] = [
     ";": 0x29, "'": 0x27, "`": 0x32, ",": 0x2b, ".": 0x2f, "/": 0x2c,
 ]
 
-func cgKey(chord: String) throws {
+func cgKey(chord: String, targetPID: pid_t) throws {
     let parts = chord.lowercased().split(separator: "+").map { String($0).trimmingCharacters(in: .whitespaces) }
     guard !parts.isEmpty else {
         throw ActionError.failed("Empty key chord.")
@@ -115,23 +121,23 @@ func cgKey(chord: String) throws {
         else if mod == 0x3b { flags.insert(.maskControl) }
         // Press modifier down
         let modDown = CGEvent(keyboardEventSource: source, virtualKey: mod, keyDown: true)
-        modDown?.post(tap: .cghidEventTap)
+        modDown?.post(to: targetPID)
     }
 
     down.flags = flags
-    down.post(tap: .cghidEventTap)
-    up.post(tap: .cghidEventTap)
+    down.post(to: targetPID)
+    up.post(to: targetPID)
 
     // Release modifiers in reverse order
     for mod in modifierCodes.reversed() {
         let modUp = CGEvent(keyboardEventSource: source, virtualKey: mod, keyDown: false)
-        modUp?.post(tap: .cghidEventTap)
+        modUp?.post(to: targetPID)
     }
 }
 
 // MARK: - CGEvent type (Unicode keyboard)
 
-func cgType(_ text: String) throws {
+func cgType(_ text: String, targetPID: pid_t) throws {
     let source = CGEventSource(stateID: .hidSystemState)
 
     for char in text {
@@ -139,8 +145,8 @@ func cgType(_ text: String) throws {
             // Type return for newline
             let down = CGEvent(keyboardEventSource: source, virtualKey: keyMap["return"]!, keyDown: true)
             let up = CGEvent(keyboardEventSource: source, virtualKey: keyMap["return"]!, keyDown: false)
-            down?.post(tap: .cghidEventTap)
-            up?.post(tap: .cghidEventTap)
+            down?.post(to: targetPID)
+            up?.post(to: targetPID)
             continue
         }
 
@@ -151,19 +157,19 @@ func cgType(_ text: String) throws {
         }
         var chars = Array(String(char).utf16)
         keyDownEvent.keyboardSetUnicodeString(stringLength: chars.count, unicodeString: &chars)
-        keyDownEvent.post(tap: .cghidEventTap)
+        keyDownEvent.post(to: targetPID)
 
         let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
         guard let keyUpEvent = up else {
             throw ActionError.failed("Failed to create key up event for character.")
         }
-        keyUpEvent.post(tap: .cghidEventTap)
+        keyUpEvent.post(to: targetPID)
     }
 }
 
 // MARK: - CGEvent drag
 
-func cgDrag(fromX: Double, fromY: Double, toX: Double, toY: Double, durationMs: Double) throws {
+func cgDrag(fromX: Double, fromY: Double, toX: Double, toY: Double, durationMs: Double, targetPID: pid_t) throws {
     let source = CGEventSource(stateID: .hidSystemState)
     let from = CGPoint(x: fromX, y: fromY)
     let to = CGPoint(x: toX, y: toY)
@@ -173,7 +179,7 @@ func cgDrag(fromX: Double, fromY: Double, toX: Double, toY: Double, durationMs: 
     guard let down = mouseDown else {
         throw ActionError.failed("Failed to create mouse down event for drag.")
     }
-    down.post(tap: .cghidEventTap)
+    down.post(to: targetPID)
 
     // Interpolate over duration
     let steps = max(1, Int(durationMs / 16)) // ~60fps
@@ -186,7 +192,7 @@ func cgDrag(fromX: Double, fromY: Double, toX: Double, toY: Double, durationMs: 
         guard let dragEvent = drag else {
             throw ActionError.failed("Failed to create mouse drag event.")
         }
-        dragEvent.post(tap: .cghidEventTap)
+        dragEvent.post(to: targetPID)
         usleep(16000) // ~16ms per step
     }
 
@@ -195,5 +201,5 @@ func cgDrag(fromX: Double, fromY: Double, toX: Double, toY: Double, durationMs: 
     guard let up = mouseUp else {
         throw ActionError.failed("Failed to create mouse up event for drag.")
     }
-    up.post(tap: .cghidEventTap)
+    up.post(to: targetPID)
 }

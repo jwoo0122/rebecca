@@ -3,6 +3,19 @@ import ApplicationServices
 import Foundation
 import ScreenCaptureKit
 
+
+/// Resolves a ScreenCaptureKit window ID to its owning process ID.
+func findWindowOwnerPID(windowID: UInt32, deadline: UInt64 = UInt64.max) throws -> pid_t {
+    let snapshot = try queryWindowSnapshot(deadline: deadline)
+    guard let observation = snapshot.observations.first(where: { $0.info.windowID == windowID }) else {
+        throw ActionError.failed("Window \(windowID) not found.")
+    }
+    guard let ownerPID = observation.info.ownerPID, ownerPID > 0 else {
+        throw ActionError.failed("Window \(windowID) has no owner PID.")
+    }
+    return pid_t(ownerPID)
+}
+
 /// Finds an AXUIElement window matching the given SCWindowID.
 func findAXWindow(windowID: UInt32, deadline: UInt64 = UInt64.max) throws -> AXUIElement {
     let snapshot = try queryWindowSnapshot(deadline: deadline)

@@ -26,12 +26,12 @@ All commands must use `--json` for machine-readable output. Non-JSON output is f
 | `find` | Search accessibility elements by attribute |
 | `press` | Press an AX element (AXPress) |
 | `set-value` | Set the value of an AX text field (AXSetValue) |
-| `click` | Click an element (AX) or coordinate (CGEvent) |
-| `type` | Type text into an element (AX) or focused field (CGEvent) |
-| `key` | Press a key or chord (CGEvent) |
-| `move` | Move the cursor to a coordinate (CGEvent) |
-| `scroll` | Scroll vertically or horizontally (CGEvent) |
-| `drag` | Drag from one coordinate to another (CGEvent) |
+| `click` | Click an element (AX) or a window-targeted coordinate (CGEvent) |
+| `type` | Type text into an element (AX) or a window-targeted field (CGEvent) |
+| `key` | Press a key or chord targeted at a window (CGEvent) |
+| `move` | Send a window-targeted pointer move (CGEvent) |
+| `scroll` | Scroll a window target (CGEvent) |
+| `drag` | Drag within a window target (CGEvent) |
 | `activate` | Activate an application by bundle ID |
 | `window-move` | Move a window to coordinates |
 | `window-resize` | Resize a window |
@@ -60,11 +60,23 @@ All commands must use `--json` for machine-readable output. Non-JSON output is f
 
 All external coordinates are macOS global logical points (not pixels). On Retina displays, 1 logical point = 2 pixels. The `displays` command provides scale factors for conversion.
 
+Coordinate and un-targeted keyboard actions require `--window-id`. Obtain it from `windows`; the host resolves the window owner PID and routes synthesized events to that process. The host never falls back to the global event stream when a target window is missing or stale.
+
+Examples:
+
+```sh
+rebecca click --window-id 123 --x 100 --y 200
+rebecca key --window-id 123 --chord "cmd+a"
+rebecca type --window-id 123 --text "hello"
+rebecca drag --window-id 123 --from-x 100 --from-y 200 --to-x 300 --to-y 200
+```
+
 ## Error handling
 
 - `permission_denied`: Grant Accessibility or Screen Recording permission to `Rebecca.app`
 - `stale_observation`: Element belongs to an old revision — re-query the tree
-- `target_not_found`: Element not found in the current revision
+- `target_not_found`: Element or target window not found
+- `target_window_required`: A targeted input action is missing `--window-id`
 - `emergency_stop`: Mutating actions blocked — run `resume` to continue
 - `security_rejection`: Secure text fields reject `type`/`set-value` for safety
 - `unsupported`: The element does not support the requested action
@@ -84,7 +96,7 @@ All external coordinates are macOS global logical points (not pixels). On Retina
 
 ## Important limitations
 
-- `executed: true` means the event was sent or AX action was called, **not** that the intended goal was achieved
+- `executed: true` means the targeted event was sent or AX action was called, **not** that the intended goal was achieved
 - The tool does not verify whether the action achieved the user's intent
 - High-risk user actions (deleting files, sending messages, etc.) should be approved by the calling harness
 - The tool is a low-level primitive — orchestration and intent verification are the agent's responsibility
