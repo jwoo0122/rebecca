@@ -495,3 +495,51 @@ fn wait_until_requires_a_condition_before_connecting() {
     assert_eq!(value["ok"], false);
     assert_eq!(value["error"]["code"], "invalid_input");
 }
+
+#[test]
+fn scroll_to_end_sends_only_the_request_scoped_target() {
+    let socket = socket_path("scroll-to-end");
+    let listener = UnixListener::bind(&socket).unwrap();
+    let worker = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let request: Request = read_message(&mut stream).unwrap();
+        assert_eq!(request.command, "scroll_to_end");
+        assert_eq!(request.arguments, json!({"window_id": 2939}));
+        write_message(
+            &mut stream,
+            &json!({
+                "protocol_version": PROTOCOL_VERSION,
+                "request_id": request.request_id,
+                "ok": true,
+                "action": "scroll_to_end",
+                "executed": true,
+                "method": "ax_set_vertical_scroll_bar",
+                "before_revision": 10,
+                "after_revision": 11,
+                "verified": true,
+                "at_end": true
+            }),
+        )
+        .unwrap();
+    });
+
+    let output = Command::new(env!("CARGO_BIN_EXE_rebecca"))
+        .args([
+            "scroll-to-end",
+            "--window-id",
+            "2939",
+            "--json",
+            "--no-start",
+            "--socket",
+        ])
+        .arg(&socket)
+        .output()
+        .unwrap();
+    worker.join().unwrap();
+    std::fs::remove_file(&socket).unwrap();
+
+    assert!(output.status.success());
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["action"], "scroll_to_end");
+    assert_eq!(value["at_end"], true);
+}

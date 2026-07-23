@@ -380,6 +380,7 @@ private struct ActionResponse: Encodable {
     let beforeRevision: UInt64?
     let afterRevision: UInt64?
     let verified: Bool?
+    let atEnd: Bool?
     let beforeURL: String?
     let afterURL: String?
     let beforeTitle: String?
@@ -396,6 +397,7 @@ private struct ActionResponse: Encodable {
         beforeRevision: UInt64?,
         afterRevision: UInt64?,
         verified: Bool? = nil,
+        atEnd: Bool? = nil,
         beforeURL: String? = nil,
         afterURL: String? = nil,
         beforeTitle: String? = nil,
@@ -411,6 +413,7 @@ private struct ActionResponse: Encodable {
         self.beforeRevision = beforeRevision
         self.afterRevision = afterRevision
         self.verified = verified
+        self.atEnd = atEnd
         self.beforeURL = beforeURL
         self.afterURL = afterURL
         self.beforeTitle = beforeTitle
@@ -425,6 +428,7 @@ private struct ActionResponse: Encodable {
         case beforeRevision = "before_revision"
         case afterRevision = "after_revision"
         case verified
+        case atEnd = "at_end"
         case beforeURL = "before_url"
         case afterURL = "after_url"
         case beforeTitle = "before_title"
@@ -443,6 +447,7 @@ private struct ActionResponse: Encodable {
         try container.encodeIfPresent(beforeRevision, forKey: .beforeRevision)
         try container.encodeIfPresent(afterRevision, forKey: .afterRevision)
         try container.encodeIfPresent(verified, forKey: .verified)
+        try container.encodeIfPresent(atEnd, forKey: .atEnd)
         try container.encodeIfPresent(beforeURL, forKey: .beforeURL)
         try container.encodeIfPresent(afterURL, forKey: .afterURL)
         try container.encodeIfPresent(beforeTitle, forKey: .beforeTitle)
@@ -758,7 +763,7 @@ private final class SocketServer {
         }
 
         let mutatingCommands: Set<String> = [
-            "press", "act", "navigate", "scroll_to", "set_value", "click", "type", "key", "move", "scroll", "drag", "activate",
+            "press", "act", "navigate", "scroll_to", "scroll_to_end", "set_value", "click", "type", "key", "move", "scroll", "drag", "activate",
             "window_move", "window_resize", "window_close"
         ]
         if emergencyStopActive && mutatingCommands.contains(request.command) {
@@ -816,6 +821,10 @@ private final class SocketServer {
         }
         if request.command == "scroll_to" {
             handleScrollTo(request, to: fd, deadline: deadline)
+            return
+        }
+        if request.command == "scroll_to_end" {
+            handleScrollToEnd(request, to: fd, deadline: deadline)
             return
         }
         if request.command == "press" {
@@ -1556,6 +1565,7 @@ private func targetState(appRef: AXUIElement, windowRef: AXUIElement?) -> (url: 
         beforeRevision: UInt64,
         afterRevision: UInt64,
         verified: Bool,
+        atEnd: Bool? = nil,
         before: (url: String?, title: String?),
         after: (url: String?, title: String?),
         to fd: Int32,
@@ -1571,6 +1581,7 @@ private func targetState(appRef: AXUIElement, windowRef: AXUIElement?) -> (url: 
             beforeRevision: beforeRevision,
             afterRevision: afterRevision,
             verified: verified,
+            atEnd: atEnd,
             beforeURL: before.url,
             afterURL: after.url,
             beforeTitle: before.title,
@@ -1644,6 +1655,47 @@ private func targetState(appRef: AXUIElement, windowRef: AXUIElement?) -> (url: 
         } catch let error as WindowQueryError {
             let mapped = windowError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline)
         } catch { writeFailure(error.localizedDescription, code: "internal_error", request: request, to: fd, deadline: deadline) }
+    }
+
+    private func findVerticalScrollBar(_ element: AXUIElement, depth: Int) -> AXUIElement? {
+        guard depth < 16 else { return nil }
+        var raw: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXVerticalScrollBarAttribute as CFString, &raw) == .success, let raw {
+            return unsafeBitCast(raw, to: AXUIElement.self)
+        }
+        guard let children = axChildren(element) else { return nil }
+        for child in children {
+            if let scrollBar = findVerticalScrollBar(child, depth: depth + 1) { return scrollBar }
+        }
+        return nil
+    }
+
+    private func handleScrollToEnd(_ request: Request, to fd: Int32, deadline: UInt64) {
+        do {
+            let (appRef, windowRef) = try resolveTreeTarget(request, deadline: operationDeadline(before: deadline))
+            guard let scrollRoot = windowRef else { throw ActionError.failed("A window target is required for scroll_to_end.") }
+            guard let scrollBar = findVerticalScrollBar(scrollRoot, depth: 0) else {
+                throw ActionError.actionNotSupported("AXVerticalScrollBar")
+            }
+            var maxRaw: CFTypeRef?
+            let maxValue: Double
+            if AXUIElementCopyAttributeValue(scrollBar, kAXMaxValueAttribute as CFString, &maxRaw) == .success,
+               let number = maxRaw as? NSNumber {
+                maxValue = number.doubleValue
+            } else {
+                maxValue = 1.0
+            }
+            guard AXUIElementSetAttributeValue(scrollBar, kAXValueAttribute as CFString, NSNumber(value: maxValue)) == .success else {
+                throw ActionError.failed("Unable to set the vertical scroll position.")
+            }
+            let beforeRevision = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(TreeTargetFingerprint(appPid: axPid(appRef), windowTitle: windowRef.flatMap { axString($0, kAXTitleAttribute) })))
+            let afterRevision = try observationRevisionTracker.revision(for: .windows, fingerprint: observationFingerprint(ActionFingerprint(action: "scroll_to_end", elementID: "vertical_scroll_bar")))
+            let state = targetState(appRef: appRef, windowRef: windowRef)
+            actionResponse(request: request, action: "scroll_to_end", method: "ax_set_vertical_scroll_bar", beforeRevision: beforeRevision, afterRevision: afterRevision, verified: true, atEnd: true, before: state, after: state, to: fd, deadline: deadline)
+        } catch let error as TreeQueryError { let mapped = treeError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline) }
+        catch let error as WindowQueryError { let mapped = windowError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline) }
+        catch let error as ActionError { let mapped = actionError(error); writeFailure(mapped.message, code: mapped.code, request: request, to: fd, deadline: deadline) }
+        catch { writeFailure(error.localizedDescription, code: "internal_error", request: request, to: fd, deadline: deadline) }
     }
 
     private func handleScrollTo(_ request: Request, to fd: Int32, deadline: UInt64) {

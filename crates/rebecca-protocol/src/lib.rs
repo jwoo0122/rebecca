@@ -268,6 +268,8 @@ pub struct ActionResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verified: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub at_end: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub before_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub after_url: Option<String>,
@@ -546,6 +548,7 @@ mod tests {
             before_revision: Some(10),
             after_revision: Some(11),
             verified: Some(true),
+            at_end: None,
             before_url: Some("https://example.test/old".into()),
             after_url: Some("https://example.test/new".into()),
             before_title: Some("Old".into()),
@@ -572,6 +575,7 @@ mod tests {
             before_revision: None,
             after_revision: None,
             verified: None,
+            at_end: None,
             before_url: None,
             after_url: None,
             before_title: None,

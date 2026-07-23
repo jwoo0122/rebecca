@@ -143,10 +143,17 @@ rebecca scroll-to \
   --label "Comments"
 ```
 
+Scroll the target window to its accessibility-reported end:
+
+```sh
+rebecca scroll-to-end \
+  --window-id 2939
+```
+
 Use exactly one of `--app` or `--window-id` as the target. Available element
 locators are `--role`, `--label`, `--label-contains`, `--value`, `--enabled`,
 and `--focused`. `act` currently supports `--action press`; `navigate`,
-`wait-until`, and `scroll-to` are separate semantic operations. Window-targeted
+`wait-until`, `scroll-to`, and `scroll-to-end` are separate semantic operations. Window-targeted
 operations require Accessibility and Screen Recording permission. The JSON
 response distinguishes event dispatch (`executed`) from state verification
 (`verified`) and includes before/after URL and title when available.

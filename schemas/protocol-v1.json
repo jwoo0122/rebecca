@@ -806,6 +806,9 @@
         "verified": {
           "type": "boolean"
         },
+        "at_end": {
+          "type": "boolean"
+        },
         "before_url": {
           "type": "string"
         },

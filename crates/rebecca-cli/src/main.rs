@@ -188,6 +188,13 @@ enum Commands {
         #[arg(long)]
         value: Option<String>,
     },
+    /// Scroll the target window to its end and report whether the end was reached.
+    ScrollToEnd {
+        #[arg(long)]
+        app: Option<String>,
+        #[arg(long = "window-id")]
+        window_id: Option<u32>,
+    },
     /// Set the value of an AX text field.
     SetValue {
         #[arg(long)]
@@ -475,6 +482,7 @@ fn main() {
                 depth: 16,
             },
         ),
+        Commands::ScrollToEnd { app, window_id } => scroll_to_end(&cli, app.as_deref(), *window_id),
         Commands::SetValue {
             element,
             revision,
@@ -2174,6 +2182,17 @@ fn scroll_to(
         return 2;
     }
     semantic_request(cli, "scroll_to", arguments, "scroll_to")
+}
+
+fn scroll_to_end(cli: &Cli, app: Option<&str>, window_id: Option<u32>) -> i32 {
+    let arguments = match semantic_target(app, window_id) {
+        Ok(value) => value,
+        Err(message) => {
+            emit_error(cli.json, "invalid_input", message, None);
+            return 2;
+        }
+    };
+    semantic_request(cli, "scroll_to_end", arguments, "scroll_to_end")
 }
 
 fn press(cli: &Cli, element: &str, revision: u64) -> i32 {
