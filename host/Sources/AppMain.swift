@@ -963,7 +963,7 @@ private final class SocketServer {
             let displays = try queryDisplays(deadline: operationDeadline)
             let revision = try observationRevisionTracker.revision(
                 for: .displays,
-                fingerprint: observationFingerprint(displays)
+                fingerprint: displayObservationFingerprint(displays)
             )
             writeResponse(DisplaysResponse(
                 protocolVersion: protocolVersion,

@@ -80,3 +80,20 @@ private func displayInfo(for display: SCDisplay) throws -> DisplayInfo {
         primary: displayID == CGMainDisplayID()
     )
 }
+
+func displayObservationFingerprint(_ displays: [DisplayInfo]) -> Data {
+    let values = displays.sorted { $0.displayID < $1.displayID }.map { display in
+        [
+            String(display.displayID),
+            String(display.logicalFrame.x),
+            String(display.logicalFrame.y),
+            String(display.logicalFrame.width),
+            String(display.logicalFrame.height),
+            String(display.pixelSize.width),
+            String(display.pixelSize.height),
+            String(display.scaleFactor),
+            String(display.primary)
+        ].joined(separator: "|")
+    }
+    return Data(values.joined(separator: "\n").utf8)
+}
