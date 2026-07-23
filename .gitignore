@@ -14,7 +14,6 @@ resources/icon.iconset/
 *.p12
 *.p8
 .DS_Store
-icon.png
 resources/Rebecca.icns
 macos/Rebecca.xcodeproj/xcuserdata/
 macos/Rebecca.xcodeproj/project.xcworkspace/xcuserdata/
