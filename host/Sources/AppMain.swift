@@ -1470,8 +1470,10 @@ private final class SocketServer {
                 deadline: deadline
             )
             return nil
+        }
+    }
 
-private func targetState(appRef: AXUIElement, windowRef: AXUIElement?) -> (url: String?, title: String?) {
+    private func targetState(appRef: AXUIElement, windowRef: AXUIElement?) -> (url: String?, title: String?) {
         let resolvedWindow: AXUIElement?
         if let windowRef {
             resolvedWindow = windowRef
@@ -1602,10 +1604,14 @@ private func targetState(appRef: AXUIElement, windowRef: AXUIElement?) -> (url: 
                 fingerprint: observationFingerprint(TreeTargetFingerprint(appPid: axPid(appRef), windowTitle: windowRef.flatMap { axString($0, kAXTitleAttribute) }))
             )
             let before = targetState(appRef: appRef, windowRef: windowRef)
+            let targetPID = axPid(appRef)
+            guard targetPID > 0 else { throw ActionError.failed("Unable to determine the target application.") }
             bringTargetToFront(appRef: appRef, windowRef: windowRef)
-            try cgKey(chord: "cmd+l")
-            try cgType(url)
-            try cgKey(chord: "return")
+            try withUserFocusGuard {
+                try cgKey(chord: "cmd+l", targetPID: targetPID)
+                try cgType(url, targetPID: targetPID)
+                try cgKey(chord: "return", targetPID: targetPID)
+            }
             let result = try waitForConditions(request: request, appRef: appRef, windowRef: windowRef, deadline: deadline, includeLocator: false)
             guard result.verified else {
                 writeFailure("Navigation completed but the expected state was not observed.", code: "postcondition_timeout", request: request, to: fd, deadline: deadline)
@@ -1801,7 +1807,9 @@ private func targetState(appRef: AXUIElement, windowRef: AXUIElement?) -> (url: 
                     throw ActionError.failed("Unable to determine the target application.")
                 }
                 NSRunningApplication(processIdentifier: pid)?.activate(options: .activateAllWindows)
-                try cgClick(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2)
+                try withUserFocusGuard {
+                    try cgClick(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2, targetPID: pid)
+                }
                 let afterRevision = try observationRevisionTracker.revision(
                     for: .windows,
                     fingerprint: observationFingerprint(ActionFingerprint(action: "act_click", elementID: elementID))
